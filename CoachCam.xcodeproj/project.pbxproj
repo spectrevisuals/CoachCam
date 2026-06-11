@@ -1,0 +1,432 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1401903E656C26FC6C0FED32 /* AnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736F109B06540370338AA280 /* AnnotationView.swift */; };
+		2A46E67B717CAB007C79CFBA /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06DEDE0EE8BB97CCAE3C23C9 /* RecordingView.swift */; };
+		4B1E8199626547FA5E4E46D4 /* PhotoToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C0F54231F56D2385BA0670 /* PhotoToolView.swift */; };
+		69D61F3FB84F95C68878101C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 057F7E85E9DC786EBD9CA470 /* ContentView.swift */; };
+		87332D738ADEF093595693A2 /* WhatsAppMediaBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 921F09ED43A3869597E0D523 /* WhatsAppMediaBrowser.swift */; };
+		87D74C3472569F92D9E81E7B /* FloatingCameraPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92487951FB241A9BE6BF9947 /* FloatingCameraPanel.swift */; };
+		94267273EA5D848D203BA4E0 /* AIMatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C676FB5C73D7B6DA301E2E2D /* AIMatchEngine.swift */; };
+		94E0CA2A96224A6CCF34C572 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F1AFDA5BF062B36781275D /* AppState.swift */; };
+		9971118112DBC925F47AB99C /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ACF15A20F66C8C54E28ABF1 /* ExportManager.swift */; };
+		9EECE6FEEBA5D5B8FDE33779 /* FrameCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EFA77A4DD3FEE550BF6F64D /* FrameCompositor.swift */; };
+		C1690730BB4F218EEA8D4D32 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4F86879E32DE78A8CC99E27E /* Assets.xcassets */; };
+		D6EF4BCA0063E82EBE6D36B8 /* RecordingConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357E792ADA24606CFD60197B /* RecordingConfig.swift */; };
+		DB2437BAFDF316412EC94450 /* PhotoStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A4BAC41B222A76EFF71966 /* PhotoStitcher.swift */; };
+		E1BDDC64BF2803FBBD221F50 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA8F2B9614C7F3C7FD8D1CB /* CameraManager.swift */; };
+		E303796E54ACEB174CABE9B1 /* DateCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E17D2E08D91D3CF3289F3DA /* DateCompareView.swift */; };
+		E82A26FB7BE14FEABC498E37 /* RecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4D16E204EA567F500C77D6 /* RecordingSession.swift */; };
+		F2D9C19D065F91CF98F29CBD /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D26CD6F4C0FBF356F62E0A6 /* CameraPreviewView.swift */; };
+		F3C3345221CA4132631BC27D /* CoachCapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CFA41234D31B61B98364969 /* CoachCapApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		049A54144429E38A3D4F636C /* CoachCap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoachCap.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		057F7E85E9DC786EBD9CA470 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		06DEDE0EE8BB97CCAE3C23C9 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
+		0ACF15A20F66C8C54E28ABF1 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
+		357E792ADA24606CFD60197B /* RecordingConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfig.swift; sourceTree = "<group>"; };
+		36A4BAC41B222A76EFF71966 /* PhotoStitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStitcher.swift; sourceTree = "<group>"; };
+		4F86879E32DE78A8CC99E27E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5D26CD6F4C0FBF356F62E0A6 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		5DA8F2B9614C7F3C7FD8D1CB /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		736F109B06540370338AA280 /* AnnotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationView.swift; sourceTree = "<group>"; };
+		7CFA41234D31B61B98364969 /* CoachCapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCapApp.swift; sourceTree = "<group>"; };
+		8E17D2E08D91D3CF3289F3DA /* DateCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCompareView.swift; sourceTree = "<group>"; };
+		921F09ED43A3869597E0D523 /* WhatsAppMediaBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppMediaBrowser.swift; sourceTree = "<group>"; };
+		92487951FB241A9BE6BF9947 /* FloatingCameraPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCameraPanel.swift; sourceTree = "<group>"; };
+		97F1AFDA5BF062B36781275D /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		9EFA77A4DD3FEE550BF6F64D /* FrameCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCompositor.swift; sourceTree = "<group>"; };
+		A315148786F7F219890B6D08 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C676FB5C73D7B6DA301E2E2D /* AIMatchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMatchEngine.swift; sourceTree = "<group>"; };
+		CA4D16E204EA567F500C77D6 /* RecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSession.swift; sourceTree = "<group>"; };
+		D5C0F54231F56D2385BA0670 /* PhotoToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoToolView.swift; sourceTree = "<group>"; };
+		FDC66FA6BA76A873678DAC8B /* CoachCap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoachCap.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		14706332B71664DB3865E1C5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				049A54144429E38A3D4F636C /* CoachCap.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4CA1054EE25DD6DBBCFD6B13 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				97F1AFDA5BF062B36781275D /* AppState.swift */,
+				357E792ADA24606CFD60197B /* RecordingConfig.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		5085F5F3959C3F5179629711 /* Compositor */ = {
+			isa = PBXGroup;
+			children = (
+				9EFA77A4DD3FEE550BF6F64D /* FrameCompositor.swift */,
+			);
+			path = Compositor;
+			sourceTree = "<group>";
+		};
+		6EB0152DFAE11131836C8BB9 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				5DA8F2B9614C7F3C7FD8D1CB /* CameraManager.swift */,
+				5D26CD6F4C0FBF356F62E0A6 /* CameraPreviewView.swift */,
+			);
+			path = Camera;
+			sourceTree = "<group>";
+		};
+		71ED68973D748408078909EA /* Recording */ = {
+			isa = PBXGroup;
+			children = (
+				CA4D16E204EA567F500C77D6 /* RecordingSession.swift */,
+			);
+			path = Recording;
+			sourceTree = "<group>";
+		};
+		7810DC024B9FEE5AA12E659E /* CoachCap */ = {
+			isa = PBXGroup;
+			children = (
+				4F86879E32DE78A8CC99E27E /* Assets.xcassets */,
+				FDC66FA6BA76A873678DAC8B /* CoachCap.entitlements */,
+				7CFA41234D31B61B98364969 /* CoachCapApp.swift */,
+				A315148786F7F219890B6D08 /* Info.plist */,
+				6EB0152DFAE11131836C8BB9 /* Camera */,
+				5085F5F3959C3F5179629711 /* Compositor */,
+				AB3DE78F141782A0450FA226 /* Export */,
+				4CA1054EE25DD6DBBCFD6B13 /* Models */,
+				E647E83BC6C30A527F07327B /* PhotoTool */,
+				71ED68973D748408078909EA /* Recording */,
+				CDDA8C9C551A338669232A9E /* UI */,
+			);
+			path = CoachCap;
+			sourceTree = "<group>";
+		};
+		9994237439C104FF3FB32270 = {
+			isa = PBXGroup;
+			children = (
+				7810DC024B9FEE5AA12E659E /* CoachCap */,
+				14706332B71664DB3865E1C5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AB3DE78F141782A0450FA226 /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				0ACF15A20F66C8C54E28ABF1 /* ExportManager.swift */,
+			);
+			path = Export;
+			sourceTree = "<group>";
+		};
+		CDDA8C9C551A338669232A9E /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				057F7E85E9DC786EBD9CA470 /* ContentView.swift */,
+				92487951FB241A9BE6BF9947 /* FloatingCameraPanel.swift */,
+				D5C0F54231F56D2385BA0670 /* PhotoToolView.swift */,
+				06DEDE0EE8BB97CCAE3C23C9 /* RecordingView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		E647E83BC6C30A527F07327B /* PhotoTool */ = {
+			isa = PBXGroup;
+			children = (
+				C676FB5C73D7B6DA301E2E2D /* AIMatchEngine.swift */,
+				736F109B06540370338AA280 /* AnnotationView.swift */,
+				8E17D2E08D91D3CF3289F3DA /* DateCompareView.swift */,
+				36A4BAC41B222A76EFF71966 /* PhotoStitcher.swift */,
+				921F09ED43A3869597E0D523 /* WhatsAppMediaBrowser.swift */,
+			);
+			path = PhotoTool;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F53CBB10C356C03E5298F6F7 /* CoachCap */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5AF98F023571ED905A749B90 /* Build configuration list for PBXNativeTarget "CoachCap" */;
+			buildPhases = (
+				451A1A172215A4596FABE133 /* Sources */,
+				0E462F5284411F197ECE95C5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CoachCap;
+			packageProductDependencies = (
+			);
+			productName = CoachCap;
+			productReference = 049A54144429E38A3D4F636C /* CoachCap.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		513391A61F576EA15D3DB43F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					F53CBB10C356C03E5298F6F7 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 77CF7522D4DDB4620AAEA1CF /* Build configuration list for PBXProject "CoachCam" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 9994237439C104FF3FB32270;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 14706332B71664DB3865E1C5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F53CBB10C356C03E5298F6F7 /* CoachCap */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0E462F5284411F197ECE95C5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1690730BB4F218EEA8D4D32 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		451A1A172215A4596FABE133 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				94267273EA5D848D203BA4E0 /* AIMatchEngine.swift in Sources */,
+				1401903E656C26FC6C0FED32 /* AnnotationView.swift in Sources */,
+				94E0CA2A96224A6CCF34C572 /* AppState.swift in Sources */,
+				E1BDDC64BF2803FBBD221F50 /* CameraManager.swift in Sources */,
+				F2D9C19D065F91CF98F29CBD /* CameraPreviewView.swift in Sources */,
+				F3C3345221CA4132631BC27D /* CoachCapApp.swift in Sources */,
+				69D61F3FB84F95C68878101C /* ContentView.swift in Sources */,
+				E303796E54ACEB174CABE9B1 /* DateCompareView.swift in Sources */,
+				9971118112DBC925F47AB99C /* ExportManager.swift in Sources */,
+				87D74C3472569F92D9E81E7B /* FloatingCameraPanel.swift in Sources */,
+				9EECE6FEEBA5D5B8FDE33779 /* FrameCompositor.swift in Sources */,
+				DB2437BAFDF316412EC94450 /* PhotoStitcher.swift in Sources */,
+				4B1E8199626547FA5E4E46D4 /* PhotoToolView.swift in Sources */,
+				D6EF4BCA0063E82EBE6D36B8 /* RecordingConfig.swift in Sources */,
+				E82A26FB7BE14FEABC498E37 /* RecordingSession.swift in Sources */,
+				2A46E67B717CAB007C79CFBA /* RecordingView.swift in Sources */,
+				87332D738ADEF093595693A2 /* WhatsAppMediaBrowser.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		540FA14F4812BB5959FD7AED /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CoachCap/CoachCap.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = CoachCap/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		9EA9A29234C8B08F0E43A810 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = CoachCap/CoachCap.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = CoachCap/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coachcam.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		A31883E97575F94D3CC06CE3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = CoachCap/CoachCap.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = CoachCap/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coachcam.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		FB34D979C966C3F6368C4B93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CoachCap/CoachCap.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = CoachCap/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5AF98F023571ED905A749B90 /* Build configuration list for PBXNativeTarget "CoachCap" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FB34D979C966C3F6368C4B93 /* Debug */,
+				540FA14F4812BB5959FD7AED /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		77CF7522D4DDB4620AAEA1CF /* Build configuration list for PBXProject "CoachCam" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9EA9A29234C8B08F0E43A810 /* Debug */,
+				A31883E97575F94D3CC06CE3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 513391A61F576EA15D3DB43F /* Project object */;
+}
