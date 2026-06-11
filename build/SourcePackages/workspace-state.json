@@ -1,0 +1,166 @@
+{
+  "object" : {
+    "artifacts" : [
+      {
+        "kind" : {
+          "xcframework" : {
+
+          }
+        },
+        "packageRef" : {
+          "identity" : "sentry-swift",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/getsentry/sentry-swift.git",
+          "name" : "sentry-swift"
+        },
+        "path" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/SourcePackages/artifacts/sentry-swift/Sentry-Dynamic/Sentry-Dynamic.xcframework",
+        "source" : {
+          "checksum" : "dc071a9b1a88783a5fde85170a8e66973317be707f15eb6bf10f7586aafe9631",
+          "type" : "remote",
+          "url" : "https://github.com/getsentry/sentry-cocoa/releases/download/8.58.3/Sentry-Dynamic.xcframework.zip"
+        },
+        "targetName" : "Sentry-Dynamic"
+      },
+      {
+        "kind" : {
+          "xcframework" : {
+
+          }
+        },
+        "packageRef" : {
+          "identity" : "sentry-swift",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/getsentry/sentry-swift.git",
+          "name" : "sentry-swift"
+        },
+        "path" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/SourcePackages/artifacts/sentry-swift/Sentry/Sentry.xcframework",
+        "source" : {
+          "checksum" : "4fc8003c7fccfcf3e15bc25efcc15a59bce1fc54d3f80c39d8f997fe0f95c0e3",
+          "type" : "remote",
+          "url" : "https://github.com/getsentry/sentry-cocoa/releases/download/8.58.3/Sentry.xcframework.zip"
+        },
+        "targetName" : "Sentry"
+      },
+      {
+        "kind" : {
+          "xcframework" : {
+
+          }
+        },
+        "packageRef" : {
+          "identity" : "sentry-swift",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/getsentry/sentry-swift.git",
+          "name" : "sentry-swift"
+        },
+        "path" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/SourcePackages/artifacts/sentry-swift/Sentry-WithoutUIKitOrAppKit/Sentry-WithoutUIKitOrAppKit.xcframework",
+        "source" : {
+          "checksum" : "5444cb74bc114edc0d6c6972e1571cd2b3b3f7891804bac2ac2f5444238bd36b",
+          "type" : "remote",
+          "url" : "https://github.com/getsentry/sentry-cocoa/releases/download/8.58.3/Sentry-WithoutUIKitOrAppKit.xcframework.zip"
+        },
+        "targetName" : "Sentry-WithoutUIKitOrAppKit"
+      },
+      {
+        "kind" : {
+          "xcframework" : {
+
+          }
+        },
+        "packageRef" : {
+          "identity" : "sentry-swift",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/getsentry/sentry-swift.git",
+          "name" : "sentry-swift"
+        },
+        "path" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/SourcePackages/artifacts/sentry-swift/Sentry-Dynamic-WithARM64e/Sentry-Dynamic-WithARM64e.xcframework",
+        "source" : {
+          "checksum" : "83a75d8c5b13c8a8613ab0daf2f6c9b3eeeb39a3e19f631e2b0118552d0a72f9",
+          "type" : "remote",
+          "url" : "https://github.com/getsentry/sentry-cocoa/releases/download/8.58.3/Sentry-Dynamic-WithARM64e.xcframework.zip"
+        },
+        "targetName" : "Sentry-Dynamic-WithARM64e"
+      },
+      {
+        "kind" : {
+          "xcframework" : {
+
+          }
+        },
+        "packageRef" : {
+          "identity" : "sentry-swift",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/getsentry/sentry-swift.git",
+          "name" : "sentry-swift"
+        },
+        "path" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/SourcePackages/artifacts/sentry-swift/Sentry-WithoutUIKitOrAppKit-WithARM64e/Sentry-WithoutUIKitOrAppKit-WithARM64e.xcframework",
+        "source" : {
+          "checksum" : "2d16d256d7b2c6f54095add09e5a02fad804e1a70d04601d84111ad15d6aa9ea",
+          "type" : "remote",
+          "url" : "https://github.com/getsentry/sentry-cocoa/releases/download/8.58.3/Sentry-WithoutUIKitOrAppKit-WithARM64e.xcframework.zip"
+        },
+        "targetName" : "Sentry-WithoutUIKitOrAppKit-WithARM64e"
+      },
+      {
+        "kind" : {
+          "xcframework" : {
+
+          }
+        },
+        "packageRef" : {
+          "identity" : "sparkle",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/sparkle-project/Sparkle.git",
+          "name" : "Sparkle"
+        },
+        "path" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/SourcePackages/artifacts/sparkle/Sparkle/Sparkle.xcframework",
+        "source" : {
+          "checksum" : "3a5d7fd698acc39c122e75764ed3614b472b284cc483f32ae7006d86c513370c",
+          "type" : "remote",
+          "url" : "https://github.com/sparkle-project/Sparkle/releases/download/2.9.3/Sparkle-for-Swift-Package-Manager.zip"
+        },
+        "targetName" : "Sparkle"
+      }
+    ],
+    "dependencies" : [
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "sentry-swift",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/getsentry/sentry-swift.git",
+          "name" : "sentry-swift"
+        },
+        "state" : {
+          "checkoutState" : {
+            "revision" : "dad229c665bfd043c5d80ac7aa77717cbd19a1c3",
+            "version" : "8.58.3"
+          },
+          "name" : "sourceControlCheckout"
+        },
+        "subpath" : "sentry-swift"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "sparkle",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/sparkle-project/Sparkle.git",
+          "name" : "Sparkle"
+        },
+        "state" : {
+          "checkoutState" : {
+            "revision" : "d46d456107feacc80711b21847b82b07bd9fb46e",
+            "version" : "2.9.3"
+          },
+          "name" : "sourceControlCheckout"
+        },
+        "subpath" : "Sparkle"
+      }
+    ],
+    "prebuilts" : [
+
+    ]
+  },
+  "version" : 7
+}

@@ -1,0 +1,12 @@
+{
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/PhotoTool/AIMatchEngine.swift" : {
+    "abi-baseline-json" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCam.abi.json",
+    "const-values" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary.swiftconstvalues",
+    "dependencies" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary.d",
+    "diagnostics" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary.dia",
+    "objc-header" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCam-Swift.h",
+    "swiftdoc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCam.swiftdoc",
+    "swiftmodule" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCam.swiftmodule",
+    "swiftsourceinfo" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCam.swiftsourceinfo"
+  }
+}

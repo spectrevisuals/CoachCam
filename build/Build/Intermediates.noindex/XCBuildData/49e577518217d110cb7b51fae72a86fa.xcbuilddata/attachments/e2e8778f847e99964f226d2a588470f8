@@ -1,0 +1,16 @@
+{
+  "" : {
+    "const-values" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper-primary.swiftconstvalues",
+    "dependencies" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper-primary.d",
+    "diagnostics" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper-primary.dia",
+    "emit-module-dependencies" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper-primary-emit-module.dia",
+    "pch" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper-primary.swiftdeps"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/build/SourcePackages/checkouts/sentry-swift/Sources/SentryCppHelper/SentryCppHelper.swift" : {
+    "index-unit-output-path" : "/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/Build/Intermediates.noindex/Sentry.build/Release/SentryCppHelper.build/Objects-normal/arm64/SentryCppHelper.o"
+  }
+}
