@@ -1,8 +1,0 @@
-Target dependency graph (4 targets)
-Target 'CoachCap' in project 'CoachCap'
-➜ Explicit dependency on target 'Sentry' in project 'Sentry'
-➜ Explicit dependency on target 'Sparkle' in project 'Sparkle'
-Target 'Sparkle' in project 'Sparkle' (no dependencies)
-Target 'Sentry' in project 'Sentry'
-➜ Explicit dependency on target 'SentryCppHelper' in project 'Sentry'
-Target 'SentryCppHelper' in project 'Sentry' (no dependencies)

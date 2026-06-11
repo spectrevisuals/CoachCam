@@ -15,16 +15,12 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1</string>
+	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>1</string>
 	<key>NSCameraUsageDescription</key>
-	<string>CoachCam uses your camera to record a face-cam overlay on your screen recordings.</string>
+	<string>CoachCap uses your camera to record a face-cam overlay on your screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>CoachCam uses your microphone to record audio commentary with your screen recordings.</string>
-	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>KI4MaWiff6DpdHJOjjOxO+8aGQMO2XHoS2ubwpZIB44=</string>
-	</dict>
+	<string>CoachCap uses your microphone to record audio commentary with your screen recordings.</string>
+</dict>
 </plist>
