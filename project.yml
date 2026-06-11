@@ -5,13 +5,6 @@ options:
     macOS: "14.0"
   xcodeVersion: "15.0"
 
-packages:
-  Sentry:
-    url: https://github.com/getsentry/sentry-swift.git
-    from: 8.0.0
-  Sparkle:
-    url: https://github.com/sparkle-project/Sparkle.git
-    from: 2.5.0
 
 settings:
   base:
@@ -36,9 +29,6 @@ targets:
           - "**/*.md"
     resources:
       - CoachCap/Assets.xcassets
-    dependencies:
-      - package: Sentry
-      - package: Sparkle
     info:
       path: CoachCap/Info.plist
       properties:

@@ -3,6 +3,10 @@ set -e
 
 echo "Building CoachCam DMG with proper symlink preservation..."
 
+# Update Info.plist with version info
+plutil -replace CFBundleShortVersionString -string "1.1" CoachCap/Info.plist
+plutil -replace CFBundleVersion -string "2" CoachCap/Info.plist
+
 # Build Release version
 echo "→ Building Release..."
 xcodebuild -project CoachCap.xcodeproj -scheme CoachCap -configuration Release -derivedDataPath build > /dev/null 2>&1

@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		09C3BF0BF9D38DD00B674CED /* RecordingConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3722468CB77EB086D2FB7748 /* RecordingConfig.swift */; };
-		14AD909DA23F7B7033D28052 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A6F6E3C39AE945A15094D144 /* Sparkle */; };
 		17AA266CD34AD42274B46D99 /* LicenseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406844247D2A2F801DD13664 /* LicenseView.swift */; };
 		1D2658976C140792B9B45B8E /* AnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03918194DCDA149CA089450A /* AnnotationView.swift */; };
 		2406C52DC94FABD46D9E08D2 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A6488731B2659C66640220 /* ExportManager.swift */; };
@@ -22,7 +21,6 @@
 		5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */; };
 		560E711753E31B02C027F98B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A4B52C7FF34D1CCBC74D8A24 /* Assets.xcassets */; };
 		5BED838DFC1E2E8F3A0673FE /* FloatingCameraPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */; };
-		6A826E390AFCA7BC1120E8AC /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = A7928389833D7A010DE362C9 /* Sentry */; };
 		6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5047323346857C0344F8B834 /* ContentView.swift */; };
 		A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */; };
 		C6DC436E70DCF775CEA90419 /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F262202F43247BCA770F183 /* RecordingView.swift */; };
@@ -59,18 +57,6 @@
 		DDCA12EB0821EB2A466211D5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFrameworksBuildPhase section */
-		7A9F74864071535535630894 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				6A826E390AFCA7BC1120E8AC /* Sentry in Frameworks */,
-				14AD909DA23F7B7033D28052 /* Sparkle in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0AD7FF0A07367756457893F6 /* Camera */ = {
@@ -185,7 +171,6 @@
 			buildPhases = (
 				73760D978001B394C7F3E5D9 /* Sources */,
 				E734EAA7E31E71502E016C9E /* Resources */,
-				7A9F74864071535535630894 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -193,8 +178,6 @@
 			);
 			name = CoachCap;
 			packageProductDependencies = (
-				A7928389833D7A010DE362C9 /* Sentry */,
-				A6F6E3C39AE945A15094D144 /* Sparkle */,
 			);
 			productName = CoachCap;
 			productReference = 92B8AD1DB8CBB1DF2EFE5BF2 /* CoachCap.app */;
@@ -224,10 +207,6 @@
 			);
 			mainGroup = 85E863A6AB23066682758B99;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				1A933B316A1BBAF74CD8D842 /* XCRemoteSwiftPackageReference "sentry-swift" */,
-				F4DE69E147EDEFD38641721A /* XCRemoteSwiftPackageReference "Sparkle" */,
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B656273C417E9F0C009F4D18 /* Products */;
 			projectDirPath = "";
@@ -467,38 +446,6 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		1A933B316A1BBAF74CD8D842 /* XCRemoteSwiftPackageReference "sentry-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/getsentry/sentry-swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 8.0.0;
-			};
-		};
-		F4DE69E147EDEFD38641721A /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.5.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		A6F6E3C39AE945A15094D144 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F4DE69E147EDEFD38641721A /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
-		A7928389833D7A010DE362C9 /* Sentry */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 1A933B316A1BBAF74CD8D842 /* XCRemoteSwiftPackageReference "sentry-swift" */;
-			productName = Sentry;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2F7C6C3A78C6060FD924FBCD /* Project object */;
 }
