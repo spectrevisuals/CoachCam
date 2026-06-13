@@ -2,8 +2,27 @@
 
 ## Purpose
 Native macOS app (Swift/SwiftUI, macOS 14+). Records screen + face-cam composited into a single
-H.264 MP4 small enough to drag straight into WhatsApp Desktop. Fully offline. No cloud, no
-accounts, no network calls.
+H.264 MP4 small enough to drag straight into WhatsApp Desktop. Recording, compositing, and export
+are fully on-device — no cloud, no accounts for the core workflow.
+
+The app makes outbound HTTPS calls to `api.lemonsqueezy.com` for subscription license
+activation / validation / deactivation (see Licensing below). A 30-day offline grace window keeps
+the app fully functional without a network connection; a confirmed-inactive subscription revokes
+access on the next successful check.
+
+## Licensing
+Lemon Squeezy monthly subscription license keys (store 406047, variant 1784319), one activation
+per Mac. `Models/DeviceIdentity.swift` derives a stable hardware UUID (IOKit `IOPlatformUUID`) sent
+as `instance_name`, which is what enforces one-Mac-per-key. `Models/LemonSqueezyClient.swift` wraps
+the activate/validate/deactivate endpoints and rejects responses whose `meta.store_id` /
+`meta.variant_id` don't match CoachCam. `Models/License.swift` (`LicenseManager`) owns unlock state:
+activate on key entry, validate on launch (non-blocking), and the 30-day grace logic. A confirmed
+"not active" overrides grace and locks immediately; an unreachable server rides the grace window at
+full functionality. License key, instance id, and last-validated timestamp live in the Keychain
+(`Models/Keychain.swift`), never UserDefaults. The license/settings UI (`UI/LicenseView.swift`)
+includes a "Deactivate this device" button to free the activation slot when switching Macs.
+This is a timestamp-trust model (not cryptographically signed); `LicenseManager` isolates the
+validation call so a signed-token provider could replace it later without UI changes.
 
 ## Folder Structure
 ```

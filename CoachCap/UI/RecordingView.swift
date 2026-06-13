@@ -34,6 +34,10 @@ struct RecordingView: View {
             Task { await session.checkPermission() }
             camera.startCapture(cameraID: appState.selectedCameraID)
         }
+        .task {
+            // Confirm/refresh the subscription in the background; never gates launch.
+            await licenseManager.validateOnLaunch()
+        }
         .onChange(of: appState.selectedCameraID) { _, id in
             camera.startCapture(cameraID: id)
         }
