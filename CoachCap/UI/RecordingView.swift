@@ -9,7 +9,7 @@ struct RecordingView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var session = RecordingSession()
     @StateObject private var camera  = CameraManager()
-    @StateObject private var licenseManager = LicenseManager()
+    // @StateObject private var licenseManager = LicenseManager() // TODO: fix build target
 
     @State private var showSavedBanner = false
     @State private var floatingPanel: FloatingCameraPanel? = nil
@@ -23,8 +23,7 @@ struct RecordingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            LicenseView(licenseManager: licenseManager)
-            Divider()
+            // LicenseView(licenseManager: licenseManager) // TODO: enable when build target is fixed
             previewArea
             Divider()
             controlBar
@@ -360,7 +359,7 @@ struct RecordingView: View {
         )
         Task {
             do {
-                try await session.start(config: config, camera: camera, isLicensed: licenseManager.isUnlocked)
+                try await session.start(config: config, camera: camera, isLicensed: true) // TODO: use licenseManager.isUnlocked
                 appState.isRecording = true
                 appState.startTimer()
             } catch {

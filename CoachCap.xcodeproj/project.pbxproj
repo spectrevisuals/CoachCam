@@ -21,6 +21,7 @@
 		5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */; };
 		560E711753E31B02C027F98B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A4B52C7FF34D1CCBC74D8A24 /* Assets.xcassets */; };
 		5BED838DFC1E2E8F3A0673FE /* FloatingCameraPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */; };
+		5F908561BCBA055B4F0E5929 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604CEE1E640299BDEAE1A148 /* UpdateChecker.swift */; };
 		6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5047323346857C0344F8B834 /* ContentView.swift */; };
 		A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */; };
 		C6DC436E70DCF775CEA90419 /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F262202F43247BCA770F183 /* RecordingView.swift */; };
@@ -43,6 +44,7 @@
 		5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCameraPanel.swift; sourceTree = "<group>"; };
 		5B202A972781663A1E62EDD6 /* FrameCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCompositor.swift; sourceTree = "<group>"; };
 		5F262202F43247BCA770F183 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
+		604CEE1E640299BDEAE1A148 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		6126F587402828D0DFCDA29D /* CoachCap-Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "CoachCap-Release.entitlements"; sourceTree = "<group>"; };
 		63E72A025990F2AE436EFFF8 /* WhatsAppMediaBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppMediaBrowser.swift; sourceTree = "<group>"; };
 		771B2E7E8F564068586EE10C /* License.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = License.swift; sourceTree = "<group>"; };
@@ -93,6 +95,14 @@
 			path = UI;
 			sourceTree = "<group>";
 		};
+		46600EDDD02BBAFFC419D49D /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				604CEE1E640299BDEAE1A148 /* UpdateChecker.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
 		6C1812E25DD3AC5F207D6839 /* CoachCap */ = {
 			isa = PBXGroup;
 			children = (
@@ -108,6 +118,7 @@
 				21431905A5BDF84CDF9FB129 /* PhotoTool */,
 				F673F931CB14B343FF54AA69 /* Recording */,
 				3C0994710FD253A8824F9363 /* UI */,
+				46600EDDD02BBAFFC419D49D /* Utilities */,
 			);
 			path = CoachCap;
 			sourceTree = "<group>";
@@ -252,6 +263,7 @@
 				09C3BF0BF9D38DD00B674CED /* RecordingConfig.swift in Sources */,
 				2C9488B383110E3263C61466 /* RecordingSession.swift in Sources */,
 				C6DC436E70DCF775CEA90419 /* RecordingView.swift in Sources */,
+				5F908561BCBA055B4F0E5929 /* UpdateChecker.swift in Sources */,
 				2CF12ADC89D29769D217CA35 /* WhatsAppMediaBrowser.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
