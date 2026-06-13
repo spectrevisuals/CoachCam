@@ -56,8 +56,8 @@ final class LicenseManager: ObservableObject {
         let coachName = String(parts[1])
         let signature = String(parts[2])
 
-        // Verify signature matches this Mac's hardware ID
-        let expectedSig = LicenseManager.generateSignature(coachName: coachName, hardwareID: hardwareID)
+        // Verify signature matches this Mac's hardware ID (use lowercase for consistent hashing)
+        let expectedSig = LicenseManager.generateSignature(coachName: coachName.lowercased(), hardwareID: hardwareID)
 
         if signature == expectedSig {
             return License(key: key, isValid: true, coachName: coachName, isTestKey: false)
