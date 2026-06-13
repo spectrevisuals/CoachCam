@@ -4,6 +4,8 @@ struct LicenseView: View {
     @ObservedObject var licenseManager: LicenseManager
     @State private var keyInput = ""
     @State private var validationError = ""
+    @State private var showAlert = false
+    @State private var alertMessage = ""
 
     var body: some View {
         VStack(spacing: 12) {
@@ -33,7 +35,14 @@ struct LicenseView: View {
                             .textFieldStyle(.roundedBorder)
                         Button("Activate") {
                             licenseManager.validateLicense(key: keyInput)
-                            keyInput = ""
+                            if licenseManager.isUnlocked {
+                                keyInput = ""
+                                alertMessage = "License activated!"
+                                showAlert = true
+                            } else {
+                                alertMessage = "Invalid license key"
+                                showAlert = true
+                            }
                         }
                         .disabled(keyInput.isEmpty)
                     }
@@ -50,12 +59,10 @@ struct LicenseView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .onChange(of: licenseManager.isUnlocked) { _, unlocked in
-            if !unlocked && !keyInput.isEmpty {
-                validationError = "Invalid license key"
-            } else {
-                validationError = ""
-            }
+        .alert("License", isPresented: $showAlert) {
+            Button("OK") { }
+        } message: {
+            Text(alertMessage)
         }
     }
 }
