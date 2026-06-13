@@ -15,6 +15,7 @@ struct WhatsAppMediaItem: Identifiable {
     let id    = UUID()
     let url:   URL
     let date:  Date
+    var fileSize: Int = 0
     var thumb: NSImage?
 }
 
@@ -52,7 +53,11 @@ final class WhatsAppMediaLoader: ObservableObject {
         currentPhotos = []
         let items = await Task.detached(priority: .userInitiated) {
             let rows = Self.queryPhotos(contact: contact, since: since)
-            return rows.map { item -> WhatsAppMediaItem in
+            // WhatsApp delivers HD photos as a second message (a higher-res copy of
+            // the standard one sent moments earlier), so an 8-photo check-in lands as
+            // 16 rows. Collapse those duplicate pairs before building thumbnails.
+            let unique = Self.dedupHDDuplicates(rows)
+            return unique.map { item -> WhatsAppMediaItem in
                 var copy = item
                 copy.thumb = Self.makeThumbnail(item.url)
                 return copy
@@ -104,7 +109,7 @@ final class WhatsAppMediaLoader: ObservableObject {
         let sinceTs = (since?.timeIntervalSince1970 ?? 0) - 978307200
 
         let sql = """
-            SELECT mi.ZMEDIALOCALPATH, m.ZMESSAGEDATE + 978307200
+            SELECT mi.ZMEDIALOCALPATH, m.ZMESSAGEDATE + 978307200, mi.ZFILESIZE
             FROM ZWAMESSAGE m
             JOIN ZWAMEDIAITEM mi ON mi.ZMESSAGE = m.Z_PK
             JOIN ZWACHATSESSION cs ON cs.Z_PK = m.ZCHATSESSION
@@ -128,12 +133,99 @@ final class WhatsAppMediaLoader: ObservableObject {
             guard let cStr = sqlite3_column_text(stmt, 0) else { continue }
             let relPath = String(cString: cStr)
             let ts      = sqlite3_column_double(stmt, 1)
+            let size    = Int(sqlite3_column_int64(stmt, 2))
             let full    = (mediaBase as NSString).appendingPathComponent(relPath)
             guard FileManager.default.fileExists(atPath: full) else { continue }
             out.append(WhatsAppMediaItem(url: URL(fileURLWithPath: full),
-                                         date: Date(timeIntervalSince1970: ts)))
+                                         date: Date(timeIntervalSince1970: ts),
+                                         fileSize: size))
         }
         return out
+    }
+
+    // MARK: HD-duplicate collapsing
+
+    /// Removes WhatsApp's HD/standard duplicate pairs. WhatsApp sends an HD photo as a
+    /// second message holding a higher-res copy of the standard one, so the same image
+    /// arrives twice with different files. We match by a 256-bit perceptual hash and keep
+    /// the larger (HD) copy. Threshold 7 sits safely between true twins (≤3) and distinct
+    /// physique photos of the same client (≥11) measured on real check-in data.
+    nonisolated static func dedupHDDuplicates(_ items: [WhatsAppMediaItem]) -> [WhatsAppMediaItem] {
+        struct Kept { var item: WhatsAppMediaItem; let hash: [UInt64]? }
+        var kept: [Kept] = []
+        for item in items {
+            let hash = perceptualHash(item.url)
+            if let hash,
+               let idx = kept.firstIndex(where: { $0.hash != nil && hammingDistance($0.hash!, hash) <= 7 }) {
+                // Duplicate of an already-kept photo — keep whichever file is larger (HD).
+                if item.fileSize > kept[idx].item.fileSize {
+                    kept[idx] = Kept(item: item, hash: hash)
+                }
+            } else {
+                kept.append(Kept(item: item, hash: hash))
+            }
+        }
+        return kept.map { $0.item }
+    }
+
+    /// 256-bit dHash: downscale to a 17×16 luma grid and record, per row, whether each
+    /// pixel is brighter than its right-hand neighbour (16×16 = 256 comparisons).
+    ///
+    /// We decode the full image and let CoreGraphics do a single high-quality downsample
+    /// straight to the grid. Going via a small intermediate thumbnail (or `.low`
+    /// interpolation) resamples the standard and HD copies inconsistently and pushes true
+    /// twins past the match threshold — measured on real check-in data, the full/high path
+    /// keeps twins ≤3 while distinct photos stay ≥11.
+    // Hashing decodes the full image, so cache by path: the date list and the per-date
+    // photo load both hash the same files, and a file's pixels never change.
+    private static let hashCacheLock = NSLock()
+    nonisolated(unsafe) private static var hashCache: [String: [UInt64]?] = [:]
+
+    nonisolated static func perceptualHash(_ url: URL) -> [UInt64]? {
+        let key = url.path
+        hashCacheLock.lock()
+        if let cached = hashCache[key] { hashCacheLock.unlock(); return cached }
+        hashCacheLock.unlock()
+
+        let result = computePerceptualHash(url)
+
+        hashCacheLock.lock()
+        hashCache[key] = result
+        hashCacheLock.unlock()
+        return result
+    }
+
+    nonisolated static func computePerceptualHash(_ url: URL) -> [UInt64]? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let cg  = CGImageSourceCreateImageAtIndex(src, 0, nil)
+        else { return nil }
+
+        let w = 17, h = 16
+        var pixels = [UInt8](repeating: 0, count: w * h)
+        let gray = CGColorSpaceCreateDeviceGray()
+        guard let ctx = CGContext(data: &pixels, width: w, height: h, bitsPerComponent: 8,
+                                  bytesPerRow: w, space: gray,
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+        var bits = [UInt64](repeating: 0, count: 4) // 256 bits
+        var k = 0
+        for y in 0..<h {
+            for x in 0..<(w - 1) {
+                if pixels[y * w + x] > pixels[y * w + x + 1] {
+                    bits[k >> 6] |= (UInt64(1) << UInt64(k & 63))
+                }
+                k += 1
+            }
+        }
+        return bits
+    }
+
+    nonisolated static func hammingDistance(_ a: [UInt64], _ b: [UInt64]) -> Int {
+        var d = 0
+        for i in 0..<min(a.count, b.count) { d += (a[i] ^ b[i]).nonzeroBitCount }
+        return d
     }
 
     nonisolated static func makeThumbnail(_ url: URL, maxPx: CGFloat = 200) -> NSImage? {

@@ -33,16 +33,43 @@ final class DateCompareLoader: ObservableObject {
         isLoadingContacts = false
     }
 
+    /// Tracks the most recent date-load request so a slow refinement for an old contact
+    /// can't overwrite the list after the user has switched clients.
+    private var latestDatesRequest: String?
+
     func loadDates(for contact: String) async {
         dates = []; leftPhotos = []; rightPhotos = []
-        let result = await Task.detached { DateCompareLoader.queryDates(for: contact) }.value
-        dates = result
+        latestDatesRequest = contact
+
+        // Fast pass: raw per-date counts straight from SQL, so the dropdown appears at once.
+        let raw = await Task.detached { DateCompareLoader.queryDates(for: contact) }.value
+        guard latestDatesRequest == contact else { return }
+        dates = raw
+
+        // Refine pass: recompute each count with HD/standard duplicates collapsed, so the
+        // dropdown matches what's shown when a date is opened. Hashes are cached, so opening
+        // a date afterwards is instant.
+        let refined = await Task.detached(priority: .utility) {
+            raw.map { group -> DateGroup in
+                let rows  = DateCompareLoader.queryPhotosOnDate(contact: contact, dateKey: group.key)
+                let count = WhatsAppMediaLoader.dedupHDDuplicates(rows).count
+                return DateGroup(key: group.key, date: group.date,
+                                 displayString: DateCompareLoader.dateDisplay(group.date, count: count),
+                                 count: count)
+            }
+        }.value
+        guard latestDatesRequest == contact else { return }
+        dates = refined
     }
 
     func loadSide(_ side: Side, contact: String, dateKey: String) async {
         if side == .left { isLoadingLeft = true } else { isLoadingRight = true }
         let items = await Task.detached(priority: .userInitiated) {
-            DateCompareLoader.queryPhotosOnDate(contact: contact, dateKey: dateKey)
+            // WhatsApp delivers HD photos as a second, higher-res copy of the standard
+            // one, so an 8-photo check-in lands as 16 rows. Collapse the duplicate pairs
+            // (keeping the HD copy) before building thumbnails.
+            let rows = DateCompareLoader.queryPhotosOnDate(contact: contact, dateKey: dateKey)
+            return WhatsAppMediaLoader.dedupHDDuplicates(rows)
                 .map { item -> WhatsAppMediaItem in
                     var copy = item
                     copy.thumb = WhatsAppMediaLoader.makeThumbnail(item.url, maxPx: 1600)
@@ -83,17 +110,24 @@ final class DateCompareLoader: ObservableObject {
         let TR = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         sqlite3_bind_text(stmt, 1, contact, -1, TR)
 
-        let displayFmt: DateFormatter = { let f = DateFormatter(); f.dateFormat = "d MMM yyyy"; return f }()
         var out: [DateGroup] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
             guard let k = sqlite3_column_text(stmt, 0) else { continue }
             let key   = String(cString: k)
             let count = Int(sqlite3_column_int(stmt, 1))
             let date  = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 2))
-            let disp  = "\(displayFmt.string(from: date))  ·  \(count) photo\(count == 1 ? "" : "s")"
-            out.append(DateGroup(key: key, date: date, displayString: disp, count: count))
+            out.append(DateGroup(key: key, date: date,
+                                 displayString: dateDisplay(date, count: count), count: count))
         }
         return out
+    }
+
+    private static let dateDisplayFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "d MMM yyyy"; return f
+    }()
+
+    nonisolated static func dateDisplay(_ date: Date, count: Int) -> String {
+        "\(dateDisplayFmt.string(from: date))  ·  \(count) photo\(count == 1 ? "" : "s")"
     }
 
     nonisolated static func queryPhotosOnDate(contact: String, dateKey: String) -> [WhatsAppMediaItem] {
@@ -103,7 +137,7 @@ final class DateCompareLoader: ObservableObject {
         defer { sqlite3_close(db) }
 
         let sql = """
-            SELECT mi.ZMEDIALOCALPATH, m.ZMESSAGEDATE+978307200
+            SELECT mi.ZMEDIALOCALPATH, m.ZMESSAGEDATE+978307200, mi.ZFILESIZE
             FROM ZWAMESSAGE m
             JOIN ZWAMEDIAITEM mi ON mi.ZMESSAGE = m.Z_PK
             JOIN ZWACHATSESSION cs ON cs.Z_PK = m.ZCHATSESSION
@@ -127,10 +161,12 @@ final class DateCompareLoader: ObservableObject {
             guard let c = sqlite3_column_text(stmt, 0) else { continue }
             let rel  = String(cString: c)
             let ts   = sqlite3_column_double(stmt, 1)
+            let size = Int(sqlite3_column_int64(stmt, 2))
             let full = (WhatsAppMediaLoader.mediaBase as NSString).appendingPathComponent(rel)
             guard FileManager.default.fileExists(atPath: full) else { continue }
             out.append(WhatsAppMediaItem(url: URL(fileURLWithPath: full),
-                                         date: Date(timeIntervalSince1970: ts)))
+                                         date: Date(timeIntervalSince1970: ts),
+                                         fileSize: size))
         }
         return out
     }
