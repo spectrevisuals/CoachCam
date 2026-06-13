@@ -71,17 +71,44 @@ final class AIMatchEngine {
     // MARK: - Per-image analysis
 
     private struct ImageData {
-        var fingerprint: [Float]   // 32×32 greyscale pixel vector
+        var fingerprint: [Float]      // 128×128 RGB pixel vector
         var poseLabel:   String
-        static let empty = ImageData(fingerprint: [], poseLabel: "Photo")
+        var poseKeypoints: [CGPoint]  // Detected body keypoints
+        var poseConfidence: Float     // Overall pose detection confidence
+        static let empty = ImageData(fingerprint: [], poseLabel: "Photo", poseKeypoints: [], poseConfidence: 0)
     }
 
     private static func analyse(_ url: URL) -> ImageData {
         guard let cg = loadThumbnail(url) else { return .empty }
 
-        let fp    = fingerprint(cg)
+        let fp = fingerprint(cg)
+        let (label, keypoints, confidence) = extractPoseData(cg)
+        return ImageData(fingerprint: fp, poseLabel: label, poseKeypoints: keypoints, poseConfidence: confidence)
+    }
+
+    private static func extractPoseData(_ cg: CGImage) -> (label: String, keypoints: [CGPoint], confidence: Float) {
+        let poseReq = VNDetectHumanBodyPoseRequest()
+        try? VNImageRequestHandler(cgImage: cg).perform([poseReq])
+
+        var keypoints: [CGPoint] = []
+        var avgConfidence: Float = 0
+
+        if let obs = poseReq.results?.first {
+            let joints: [VNHumanBodyPoseObservation.JointName] = [
+                .leftShoulder, .rightShoulder, .leftHip, .rightHip, .leftKnee, .rightKnee
+            ]
+            var confidences: [Float] = []
+            for joint in joints {
+                if let p = try? obs.recognizedPoint(joint), p.confidence > 0.2 {
+                    keypoints.append(p.location)
+                    confidences.append(Float(p.confidence))
+                }
+            }
+            avgConfidence = confidences.isEmpty ? 0 : confidences.reduce(0, +) / Float(confidences.count)
+        }
+
         let label = poseLabel(cg)
-        return ImageData(fingerprint: fp, poseLabel: label)
+        return (label, keypoints, avgConfidence)
     }
 
     /// Shrink to 128×128 RGBA and return R+G+B channels as floats (3×16384 values).
@@ -139,11 +166,30 @@ final class AIMatchEngine {
             for (ri, rd) in right.enumerated() {
                 guard !usedRight.contains(ri) else { continue }
 
+                var dist = Float.infinity
+
+                // Visual similarity (80% weight)
                 if !ld.fingerprint.isEmpty && !rd.fingerprint.isEmpty {
-                    let dist = l2(ld.fingerprint, rd.fingerprint)
-                    if dist < bestDist { bestDist = dist; bestRI = ri }
+                    let visualDist = l2(ld.fingerprint, rd.fingerprint)
+
+                    // Pose keypoint similarity (20% weight)
+                    var poseDist: Float = 0
+                    if !ld.poseKeypoints.isEmpty && !rd.poseKeypoints.isEmpty {
+                        poseDist = poseDistance(ld.poseKeypoints, rd.poseKeypoints)
+                    } else {
+                        // Penalize missing pose data
+                        poseDist = 1000
+                    }
+
+                    // Combine: visual (normalized) + pose similarity
+                    dist = (visualDist / 3000) * 0.8 + (poseDist / 10) * 0.2
                 } else if bestRI == -1 {
-                    bestRI = ri // no fingerprint — fallback to first available
+                    bestRI = ri
+                }
+
+                if dist < bestDist {
+                    bestDist = dist
+                    bestRI = ri
                 }
             }
 
@@ -155,6 +201,18 @@ final class AIMatchEngine {
         }
 
         return matches
+    }
+
+    private static func poseDistance(_ kp1: [CGPoint], _ kp2: [CGPoint]) -> Float {
+        let minCount = min(kp1.count, kp2.count)
+        guard minCount > 0 else { return Float.infinity }
+
+        let sumDist = zip(kp1.prefix(minCount), kp2.prefix(minCount)).reduce(Float(0)) { acc, pair in
+            let dx = Float(pair.0.x - pair.1.x)
+            let dy = Float(pair.0.y - pair.1.y)
+            return acc + sqrt(dx * dx + dy * dy)
+        }
+        return sumDist / Float(minCount)
     }
 
     private static func l2(_ a: [Float], _ b: [Float]) -> Float {
