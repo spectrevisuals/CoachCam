@@ -24,12 +24,16 @@ final class LicenseManager: ObservableObject {
     }
 
     func validateLicense(key: String) {
-        let isValid = isValidKeyFormat(key)
-        let license = License(key: key, isValid: isValid)
+        // Normalize: strip surrounding whitespace/newlines and any internal spaces from pasting
+        let normalized = key
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "")
+        let isValid = isValidKeyFormat(normalized)
+        let license = License(key: normalized, isValid: isValid)
         self.license = license
         self.isUnlocked = isValid
         if isValid {
-            defaults.set(key, forKey: licenseKey)
+            defaults.set(normalized, forKey: licenseKey)
         }
     }
 
