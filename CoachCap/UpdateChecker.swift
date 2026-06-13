@@ -9,8 +9,11 @@ class UpdateChecker: ObservableObject {
     @Published var updateAvailable: Update?
     @Published var isChecking = false
 
-    private let currentVersion = "1.1"
     private let gitHubRepo = "spectrevisuals/CoachCam"
+
+    private var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
+    }
 
     func checkForUpdates() {
         isChecking = true
