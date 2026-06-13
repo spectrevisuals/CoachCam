@@ -118,34 +118,29 @@ final class RecordingSession: NSObject, ObservableObject {
 
         try setupWriter(config: config)
 
-        // On macOS 15+, system handles screen selection picker — skip TCC checks
+        // Resolve which monitor to capture. config.displayID picks a specific
+        // display; nil falls back to the primary. (macOS 14's call may trigger
+        // the TCC permission dialog.)
         let display: SCDisplay
-        if #available(macOS 15.0, *) {
-            NSLog("DEBUG: macOS 15+ — using default primary display, system will show picker if needed")
-            let content = try await SCShareableContent.current
-            guard let d = content.displays.first else {
-                throw CCError.noDisplay
-            }
-            display = d
-        } else {
-            // macOS 14 and earlier: get shareable content (may trigger TCC dialog)
-            NSLog("DEBUG: macOS 14 or earlier — fetching SCShareableContent with TCC check...")
+        do {
             let content: SCShareableContent
-            do {
+            if #available(macOS 15.0, *) {
+                content = try await SCShareableContent.current
+            } else {
                 content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-                NSLog("DEBUG: SCShareableContent succeeded. Displays: \(content.displays.count)")
-            } catch {
-                let nsError = error as NSError
-                NSLog("ERROR: SCShareableContent failed - \(nsError.localizedDescription)")
-                throw nsError
             }
-            guard let d = content.displays.first else {
+            NSLog("DEBUG: SCShareableContent succeeded. Displays: \(content.displays.count)")
+            guard let chosen = content.displays.first(where: { $0.displayID == config.displayID })
+                    ?? content.displays.first else {
                 NSLog("ERROR: No displays found")
                 throw CCError.noDisplay
             }
-            display = d
+            display = chosen
+        } catch {
+            NSLog("ERROR: SCShareableContent failed - \(error.localizedDescription)")
+            throw error
         }
-        NSLog("DEBUG: Using display: \(display)")
+        NSLog("DEBUG: Using display id \(display.displayID) (\(display.width)×\(display.height))")
 
         NSLog("DEBUG: Creating SCContentFilter...")
         let filter = SCContentFilter(display: display,

@@ -20,6 +20,7 @@ final class AppState: ObservableObject {
     // Source selection
     @Published var selectedCameraID: String? = nil
     @Published var selectedMicID: String? = nil
+    @Published var selectedDisplayID: CGDirectDisplayID? = nil   // nil = primary
     @Published var webcamOnlyMode = false
 
     // Client name for auto-naming the output file

@@ -33,6 +33,9 @@ struct RecordingView: View {
             NSLog("DEBUG RecordingView: camera ID = \(ObjectIdentifier(camera))")
             Task { await session.checkPermission() }
             camera.startCapture(cameraID: appState.selectedCameraID)
+            if appState.selectedDisplayID == nil {
+                appState.selectedDisplayID = DisplayList.available().first?.id
+            }
         }
         .task {
             // Confirm/refresh the subscription in the background; never gates launch.
@@ -249,6 +252,9 @@ struct RecordingView: View {
             // Source pickers
             cameraPicker
             micPicker
+            if !appState.webcamOnlyMode && availableDisplays.count > 1 {
+                displayPicker
+            }
 
             Divider().frame(height: 32)
 
@@ -321,20 +327,24 @@ struct RecordingView: View {
         .disabled(session.isRunning)
     }
 
+    private var availableDisplays: [DisplayOption] { DisplayList.available() }
+
+    private var displayPicker: some View {
+        Picker("Screen", selection: $appState.selectedDisplayID) {
+            ForEach(availableDisplays) { d in
+                Text(d.label).tag(Optional(d.id))
+            }
+        }
+        .labelsHidden()
+        .frame(width: 200)
+        .disabled(session.isRunning)
+        .help("Choose which monitor to record")
+    }
+
     // MARK: Actions
 
     private func startWithCountdown() {
         guard !appState.isSaving, appState.countdownValue == nil else { return }
-
-        // On macOS 15+ in screen+cam mode, present system picker
-        if isOnMacOS15OrLater && !appState.webcamOnlyMode {
-            if #available(macOS 15.0, *) {
-                SCContentSharingPicker.shared.isActive = true
-                NSLog("DEBUG: SCContentSharingPicker activated")
-            }
-            startRecording()
-            return
-        }
 
         appState.countdownTask = Task { @MainActor in
             for i in stride(from: 3, through: 1, by: -1) {
@@ -356,11 +366,20 @@ struct RecordingView: View {
 
     private func startRecording() {
         guard !appState.isSaving else { return }
+
+        // Capture the selected monitor at its own aspect ratio (webcam-only mode
+        // keeps the standard 16:9 frame).
+        let chosenDisplay = DisplayList.option(for: appState.selectedDisplayID)
+        let videoSize = appState.webcamOnlyMode
+            ? CGSize(width: 1920, height: 1080)
+            : (chosenDisplay?.recommendedOutputSize ?? CGSize(width: 1920, height: 1080))
+
         let config = RecordingConfig(
             outputURL: RecordingConfig.autoOutputURL(clientName: appState.clientName),
-            videoSize: CGSize(width: 1920, height: 1080),
+            videoSize: videoSize,
             pipNormalizedRect: appState.pipRect,
-            selectedMicID: appState.selectedMicID
+            selectedMicID: appState.selectedMicID,
+            displayID: appState.webcamOnlyMode ? nil : chosenDisplay?.id
         )
         Task {
             do {

@@ -8,6 +8,7 @@ struct RecordingConfig {
     var frameRate: Int = 30
     var pipNormalizedRect: CGRect
     var selectedMicID: String?
+    var displayID: CGDirectDisplayID?   // which monitor to capture; nil = primary
 
     // Auto-selects bitrate so 2-5 min clips fit in WhatsApp's ~16 MB limit.
     static func videoBitrate(for size: CGSize) -> Int {
