@@ -3,7 +3,9 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var updateChecker: UpdateChecker
     @State private var showTranslocationAlert = false
+    @State private var showUpdateAlert = false
 
     var body: some View {
         if showTranslocationAlert {
@@ -26,6 +28,25 @@ struct ContentView: View {
                 Button("OK") { appState.errorMessage = nil }
             } message: {
                 Text(appState.errorMessage ?? "")
+            }
+            .alert("Update Available", isPresented: $showUpdateAlert) {
+                if let update = updateChecker.updateAvailable {
+                    Button("Download") {
+                        if let url = URL(string: update.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    Button("Cancel", role: .cancel) { }
+                }
+            } message: {
+                if let update = updateChecker.updateAvailable {
+                    Text("CoachCam v\(update.version) is available. Download the latest version?")
+                }
+            }
+            .onChange(of: updateChecker.updateAvailable) { newValue in
+                if newValue != nil {
+                    showUpdateAlert = true
+                }
             }
             .onAppear {
                 checkTranslocation()

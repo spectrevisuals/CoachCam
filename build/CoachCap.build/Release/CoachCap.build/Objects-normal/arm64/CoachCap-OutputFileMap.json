@@ -1,0 +1,116 @@
+{
+  "" : {
+    "const-values" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary.swiftconstvalues",
+    "dependencies" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary.d",
+    "diagnostics" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary.dia",
+    "emit-module-dependencies" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary-emit-module.dia",
+    "pch" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCap-primary.swiftdeps"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Camera/CameraManager.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraManager.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraManager.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraManager.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Camera/CameraPreviewLayer.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraPreviewLayer.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraPreviewLayer.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraPreviewLayer.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Camera/CameraPreviewView.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraPreviewView.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraPreviewView.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CameraPreviewView.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/CoachCapApp.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCapApp.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCapApp.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/CoachCapApp.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Compositor/FrameCompositor.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/FrameCompositor.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/FrameCompositor.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/FrameCompositor.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Export/ExportManager.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/ExportManager.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/ExportManager.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/ExportManager.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Models/AppState.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AppState.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AppState.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AppState.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Models/License.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/License.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/License.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/License.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Models/RecordingConfig.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingConfig.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingConfig.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingConfig.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/PhotoTool/AIMatchEngine.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AIMatchEngine.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AIMatchEngine.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AIMatchEngine.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/PhotoTool/AnnotationView.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AnnotationView.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AnnotationView.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/AnnotationView.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/PhotoTool/DateCompareView.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/DateCompareView.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/DateCompareView.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/DateCompareView.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/PhotoTool/PhotoStitcher.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/PhotoStitcher.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/PhotoStitcher.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/PhotoStitcher.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/PhotoTool/WhatsAppMediaBrowser.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/WhatsAppMediaBrowser.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/WhatsAppMediaBrowser.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/WhatsAppMediaBrowser.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/Recording/RecordingSession.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingSession.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingSession.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingSession.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/UI/ContentView.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/ContentView.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/UI/FloatingCameraPanel.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/FloatingCameraPanel.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/FloatingCameraPanel.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/FloatingCameraPanel.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/UI/LicenseView.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/LicenseView.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/LicenseView.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/LicenseView.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/UI/PhotoToolView.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/PhotoToolView.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/PhotoToolView.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/PhotoToolView.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/UI/RecordingView.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingView.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingView.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/RecordingView.o"
+  },
+  "/Users/jake/Documents/ClaudeCode/CoachCap/CoachCap/UpdateChecker.swift" : {
+    "index-unit-output-path" : "/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/UpdateChecker.o",
+    "llvm-bc" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/UpdateChecker.bc",
+    "object" : "/Users/jake/Documents/ClaudeCode/CoachCap/build/CoachCap.build/Release/CoachCap.build/Objects-normal/arm64/UpdateChecker.o"
+  }
+}

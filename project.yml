@@ -25,6 +25,8 @@ targets:
     platform: macOS
     sources:
       - path: CoachCap
+        includes:
+          - "**/*.swift"
         excludes:
           - "**/*.md"
     resources:

@@ -19,7 +19,6 @@
 		40A0229451EAB5D97F3C7163 /* DateCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */; };
 		4EC2B677B89F0FE9962102F8 /* PhotoStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */; };
 		5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */; };
-		560E711753E31B02C027F98B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A4B52C7FF34D1CCBC74D8A24 /* Assets.xcassets */; };
 		5BED838DFC1E2E8F3A0673FE /* FloatingCameraPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */; };
 		6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5047323346857C0344F8B834 /* ContentView.swift */; };
 		A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */; };
@@ -34,7 +33,6 @@
 /* Begin PBXFileReference section */
 		03918194DCDA149CA089450A /* AnnotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationView.swift; sourceTree = "<group>"; };
 		19F8AA2791B72BEAC4BEF73C /* CameraPreviewLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewLayer.swift; sourceTree = "<group>"; };
-		1E3FF76A865F615AB49C64D1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3722468CB77EB086D2FB7748 /* RecordingConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfig.swift; sourceTree = "<group>"; };
 		39A6488731B2659C66640220 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
 		406844247D2A2F801DD13664 /* LicenseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseView.swift; sourceTree = "<group>"; };
@@ -45,16 +43,13 @@
 		5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCameraPanel.swift; sourceTree = "<group>"; };
 		5B202A972781663A1E62EDD6 /* FrameCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCompositor.swift; sourceTree = "<group>"; };
 		5F262202F43247BCA770F183 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
-		6126F587402828D0DFCDA29D /* CoachCap-Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "CoachCap-Release.entitlements"; sourceTree = "<group>"; };
 		63E72A025990F2AE436EFFF8 /* WhatsAppMediaBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppMediaBrowser.swift; sourceTree = "<group>"; };
 		771B2E7E8F564068586EE10C /* License.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = License.swift; sourceTree = "<group>"; };
 		852B45D3697090E8F0B88312 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCompareView.swift; sourceTree = "<group>"; };
 		92B8AD1DB8CBB1DF2EFE5BF2 /* CoachCap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoachCap.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A4B52C7FF34D1CCBC74D8A24 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A75A1F318DEE96B9FDE2E6A6 /* RecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSession.swift; sourceTree = "<group>"; };
 		B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMatchEngine.swift; sourceTree = "<group>"; };
-		C8ADC329A5B8B9B35F0727D9 /* CoachCap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoachCap.entitlements; sourceTree = "<group>"; };
 		CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoToolView.swift; sourceTree = "<group>"; };
 		DDCA12EB0821EB2A466211D5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
@@ -98,11 +93,7 @@
 		6C1812E25DD3AC5F207D6839 /* CoachCap */ = {
 			isa = PBXGroup;
 			children = (
-				A4B52C7FF34D1CCBC74D8A24 /* Assets.xcassets */,
-				6126F587402828D0DFCDA29D /* CoachCap-Release.entitlements */,
-				C8ADC329A5B8B9B35F0727D9 /* CoachCap.entitlements */,
 				50EDFCBA28C1F4EB10570E46 /* CoachCapApp.swift */,
-				1E3FF76A865F615AB49C64D1 /* Info.plist */,
 				50FED6F144BD8300621E4CEC /* UpdateChecker.swift */,
 				0AD7FF0A07367756457893F6 /* Camera */,
 				DF34933478A0FA5435657A5B /* Compositor */,
@@ -173,7 +164,6 @@
 			buildConfigurationList = C86390543CE2B4975EDA09C2 /* Build configuration list for PBXNativeTarget "CoachCap" */;
 			buildPhases = (
 				73760D978001B394C7F3E5D9 /* Sources */,
-				E734EAA7E31E71502E016C9E /* Resources */,
 			);
 			buildRules = (
 			);
@@ -219,17 +209,6 @@
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXResourcesBuildPhase section */
-		E734EAA7E31E71502E016C9E /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				560E711753E31B02C027F98B /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		73760D978001B394C7F3E5D9 /* Sources */ = {

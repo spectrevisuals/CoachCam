@@ -1,7 +1,12 @@
 import Foundation
 
+struct Update: Equatable {
+    let version: String
+    let url: String
+}
+
 class UpdateChecker: ObservableObject {
-    @Published var updateAvailable: (version: String, url: String)?
+    @Published var updateAvailable: Update?
     @Published var isChecking = false
 
     private let currentVersion = "1.1"
@@ -29,7 +34,7 @@ class UpdateChecker: ObservableObject {
 
                 if self?.isNewerVersion(latestVersion) ?? false {
                     DispatchQueue.main.async {
-                        self?.updateAvailable = (latestVersion, release.htmlUrl)
+                        self?.updateAvailable = Update(version: latestVersion, url: release.htmlUrl)
                     }
                 }
             } catch {
