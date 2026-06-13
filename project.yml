@@ -34,7 +34,8 @@ targets:
     info:
       path: CoachCap/Info.plist
       properties:
-        CFBundleShortVersionString: "1.2.4"
+        CFBundleShortVersionString: "1.2.5"
+        CFBundleVersion: "5"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "CoachCap uses your camera to record a face-cam overlay on your screen recordings."
         NSMicrophoneUsageDescription: "CoachCap uses your microphone to record audio commentary with your screen recordings."
