@@ -142,6 +142,7 @@ struct BrowseView: View {
     @StateObject private var contactLoader = DateCompareLoader()
     @State private var selectedContact: String? = nil
     @State private var linked       = false
+    @State private var reverseControls = false
     @State private var leftIndex    = 0
     @State private var rightIndex   = 0
     @State private var linkedIndex  = 0
@@ -179,6 +180,14 @@ struct BrowseView: View {
                 }
                 .toggleStyle(.checkbox)
                 .onChange(of: linked) { _, on in if on { linkedIndex = leftIndex } }
+
+                Divider().frame(height: 20)
+
+                Toggle(isOn: $reverseControls) {
+                    Label("Reverse WASD", systemImage: reverseControls ? "arrow.2.squarepath" : "keyboard")
+                        .font(.caption)
+                }
+                .toggleStyle(.checkbox)
 
                 Divider().frame(height: 20)
 
@@ -268,26 +277,40 @@ struct BrowseView: View {
 
     private func startKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let isLeft  = event.keyCode == 123
-            let isRight = event.keyCode == 124
-            guard isLeft || isRight else { return event }
+            let isArrowLeft  = event.keyCode == 123
+            let isArrowRight = event.keyCode == 124
+            let isWASDLeft   = event.keyCode == 0  // A
+            let isWASDRight  = event.keyCode == 2  // D
+
+            guard isArrowLeft || isArrowRight || isWASDLeft || isWASDRight else { return event }
+
             // When AI matches are active, arrows step through pairs
-            if !self.aiMatches.isEmpty {
-                if isLeft  { self.stepAIMatch(-1) }
-                if isRight { self.stepAIMatch(1) }
+            if !self.aiMatches.isEmpty && (isArrowLeft || isArrowRight) {
+                if isArrowLeft  { self.stepAIMatch(-1) }
+                if isArrowRight { self.stepAIMatch(1) }
                 return nil
             }
-            let opt = event.modifierFlags.contains(.option)
+
+            // Determine which side gets arrows vs WASD
+            let arrowControlsLeft = !self.reverseControls
+
             if self.linked {
                 let cap = max(self.leftCount, self.rightCount)
-                if isLeft  { self.linkedIndex = max(0, self.linkedIndex - 1) }
-                if isRight { self.linkedIndex = min(cap - 1, self.linkedIndex + 1) }
-            } else if opt {
-                if isLeft  { self.rightIndex = max(0, self.rightIndex - 1) }
-                if isRight { self.rightIndex = min(self.rightCount - 1, self.rightIndex + 1) }
+                if isArrowLeft  || isWASDLeft  { self.linkedIndex = max(0, self.linkedIndex - 1) }
+                if isArrowRight || isWASDRight { self.linkedIndex = min(cap - 1, self.linkedIndex + 1) }
             } else {
-                if isLeft  { self.leftIndex = max(0, self.leftIndex - 1) }
-                if isRight { self.leftIndex = min(self.leftCount - 1, self.leftIndex + 1) }
+                // Arrows control one side, WASD controls the other
+                if arrowControlsLeft {
+                    if isArrowLeft  { self.leftIndex = max(0, self.leftIndex - 1) }
+                    if isArrowRight { self.leftIndex = min(self.leftCount - 1, self.leftIndex + 1) }
+                    if isWASDLeft   { self.rightIndex = max(0, self.rightIndex - 1) }
+                    if isWASDRight  { self.rightIndex = min(self.rightCount - 1, self.rightIndex + 1) }
+                } else {
+                    if isArrowLeft  { self.rightIndex = max(0, self.rightIndex - 1) }
+                    if isArrowRight { self.rightIndex = min(self.rightCount - 1, self.rightIndex + 1) }
+                    if isWASDLeft   { self.leftIndex = max(0, self.leftIndex - 1) }
+                    if isWASDRight  { self.leftIndex = min(self.leftCount - 1, self.leftIndex + 1) }
+                }
             }
             return nil
         }
