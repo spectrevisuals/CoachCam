@@ -71,8 +71,8 @@ private struct FloatingCameraView: View {
         ZStack(alignment: .topTrailing) {
             // Feed
             Group {
-                if let frame = camera.currentFrame {
-                    Image(nsImage: NSImage(ciImage: frame))
+                if let frame = camera.previewImage {
+                    Image(decorative: frame, scale: 1, orientation: .up)
                         .resizable()
                         .scaledToFill()
                 } else {

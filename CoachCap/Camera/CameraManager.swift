@@ -8,7 +8,14 @@ import AppKit
 /// can call it safely from the encode queue.
 @MainActor
 final class CameraManager: NSObject, ObservableObject {
-    @Published var currentFrame: CIImage?
+    /// Rendered preview frame. We publish a CGImage (not a CIImage-backed NSImage), because
+    /// SwiftUI renders CIImage-backed NSImages unreliably — that was the cause of the blank
+    /// grey preview even while valid frames were arriving.
+    @Published var previewImage: CGImage?
+
+    /// Shared GPU-backed context for rendering preview frames.
+    private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+
     @Published var availableCameras: [AVCaptureDevice] = []
     @Published var availableMics: [AVCaptureDevice] = []
     @Published var mirrorEnabled: Bool = true
@@ -27,6 +34,7 @@ final class CameraManager: NSObject, ObservableObject {
     private let bufferLock = NSLock()
 
     private var activeObserver: NSObjectProtocol?
+    private var lastCameraID: String?
 
     override init() {
         super.init()
@@ -37,7 +45,17 @@ final class CameraManager: NSObject, ObservableObject {
         activeObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.enumerateDevices() }
+            Task { @MainActor in self?.refreshOnActivation() }
+        }
+    }
+
+    /// On returning to the app, re-scan devices and — crucially — start the camera if
+    /// permission has just been granted (e.g. enabled in System Settings) and we aren't
+    /// already capturing. This is what makes a freshly-granted camera appear without a relaunch.
+    private func refreshOnActivation() {
+        enumerateDevices()
+        if AVCaptureDevice.authorizationStatus(for: .video) == .authorized, captureSession == nil {
+            startCapture(cameraID: lastCameraID)
         }
     }
 
@@ -108,6 +126,7 @@ final class CameraManager: NSObject, ObservableObject {
 
     func startCapture(cameraID: String? = nil) {
         NSLog("DEBUG CameraManager: startCapture called")
+        lastCameraID = cameraID
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         NSLog("DEBUG CameraManager: Authorization status = \(status.rawValue)")
 
@@ -189,7 +208,7 @@ final class CameraManager: NSObject, ObservableObject {
         captureSession?.stopRunning()
         captureSession = nil
         bufferLock.lock(); _latestBuffer = nil; bufferLock.unlock()
-        currentFrame = nil
+        previewImage = nil
     }
 
     /// Called by FrameCompositor from the encode queue — must be nonisolated.
@@ -218,23 +237,26 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
         bufferLock.lock(); _latestBuffer = pb; bufferLock.unlock()
 
-        // Dispatch to MainActor synchronously BEFORE buffer is released
+        // Retain the buffer's image now, then hand the rendered CGImage to the main actor.
         let image = CIImage(cvPixelBuffer: pb)
         DispatchQueue.main.async { [weak self] in
-            NSLog("DEBUG CameraManager: In main queue dispatch")
-            guard let self else {
-                NSLog("DEBUG CameraManager: Self is nil in dispatch")
-                return
-            }
-            var transformedImage = image
+            guard let self else { return }
+            var output = image
             if self.mirrorEnabled {
-                transformedImage = transformedImage.transformed(
+                output = output.transformed(
                     by: CGAffineTransform(scaleX: -1, y: 1)
-                        .translatedBy(x: -transformedImage.extent.width, y: 0)
+                        .translatedBy(x: -output.extent.width, y: 0)
                 )
             }
-            self.currentFrame = transformedImage
-            NSLog("📸 SET on \(ObjectIdentifier(self)) — frame \(transformedImage.extent.size)")
+            // Downscale for the preview (it's small) to keep the per-frame render cheap.
+            let target: CGFloat = 540
+            if output.extent.height > target {
+                let s = target / output.extent.height
+                output = output.transformed(by: CGAffineTransform(scaleX: s, y: s))
+            }
+            if let cg = Self.ciContext.createCGImage(output, from: output.extent) {
+                self.previewImage = cg
+            }
         }
     }
 }

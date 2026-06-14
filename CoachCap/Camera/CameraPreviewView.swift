@@ -8,17 +8,14 @@ struct CameraPreviewView: View {
 
     var body: some View {
         ZStack {
-            if let frame = camera.currentFrame {
-                Image(nsImage: NSImage(ciImage: frame))
+            if let frame = camera.previewImage {
+                Image(decorative: frame, scale: 1, orientation: .up)
                     .resizable()
                     .scaledToFill()
                     .ignoresSafeArea()
             } else {
                 Color.black
             }
-        }
-        .onAppear {
-            NSLog("👀 VIEW observing \(ObjectIdentifier(camera)) — frame is \(camera.currentFrame != nil ? "present" : "nil")")
         }
     }
 }

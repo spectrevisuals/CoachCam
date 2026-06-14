@@ -467,8 +467,8 @@ private struct PiPOverlayView: View {
         ZStack {
             // Camera feed inside the box
             Group {
-                if let frame = camera.currentFrame {
-                    Image(nsImage: NSImage(ciImage: frame))
+                if let frame = camera.previewImage {
+                    Image(decorative: frame, scale: 1, orientation: .up)
                         .resizable()
                         .scaledToFill()
                         .clipped()
