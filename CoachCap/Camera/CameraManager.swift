@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreImage
 import Combine
+import AppKit
 
 /// Manages face-cam capture. Publishes `currentFrame` for SwiftUI preview.
 /// `latestBuffer()` is nonisolated and lock-protected so FrameCompositor
@@ -25,10 +26,36 @@ final class CameraManager: NSObject, ObservableObject {
     nonisolated(unsafe) private var _latestBuffer: CVPixelBuffer?
     private let bufferLock = NSLock()
 
+    private var activeObserver: NSObjectProtocol?
+
     override init() {
         super.init()
         NSLog("DEBUG CameraManager: init called")
-        enumerateDevices()
+        refreshDevicesRequestingAccessIfNeeded()
+        // Re-scan whenever the app returns to the foreground, so granting the camera
+        // in System Settings (or anywhere) takes effect immediately — no relaunch.
+        activeObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.enumerateDevices() }
+        }
+    }
+
+    deinit {
+        if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+    }
+
+    /// Shows the camera permission prompt if the user hasn't answered yet, then (re)builds
+    /// the device list once the system responds — so the camera appears the moment access
+    /// is granted, instead of staying greyed out until the app is relaunched.
+    func refreshDevicesRequestingAccessIfNeeded() {
+        if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
+                Task { @MainActor in self?.enumerateDevices() }
+            }
+        } else {
+            enumerateDevices()
+        }
     }
 
     func enumerateDevices() {
@@ -89,7 +116,12 @@ final class CameraManager: NSObject, ObservableObject {
             NSLog("DEBUG CameraManager: Permission not determined, requesting...")
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 NSLog("DEBUG CameraManager: Permission request result: \(granted)")
-                if granted { DispatchQueue.main.async { self?.startCapture(cameraID: cameraID) } }
+                if granted {
+                    DispatchQueue.main.async {
+                        self?.enumerateDevices()          // refresh the now-available device list
+                        self?.startCapture(cameraID: cameraID)
+                    }
+                }
             }
             return
         case .denied:
