@@ -1,27 +1,15 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-  <channel>
-    <title>CoachCam Updates</title>
-    <link>https://github.com/spectrevisuals/CoachCam</link>
-    <description>Updates for CoachCam</description>
-    <language>en-us</language>
-
-    <!-- Add new items here when you release updates -->
-    <!-- Example:
-    <item>
-      <title>Version 1.1.0</title>
-      <description>Bug fixes and improvements</description>
-      <pubDate>Thu, 11 Jun 2026 18:00:00 +0000</pubDate>
-      <sparkle:version>1.1.0</sparkle:version>
-      <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
-      <enclosure
-        url="https://github.com/YOUR-USERNAME/CoachCam/releases/download/v1.1.0/CoachCam-1.1.0.dmg"
-        sparkle:version="2"
-        sparkle:shortVersionString="1.1.0"
-        type="application/octet-stream"
-        sparkle:edSigningKeyFingerprint="YOUR-SPARKLE-KEY"
-      />
-    </item>
-    -->
-  </channel>
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>CoachCam</title>
+        <item>
+            <title>1.6.0</title>
+            <pubDate>Sun, 14 Jun 2026 09:08:15 +0100</pubDate>
+            <sparkle:version>15</sparkle:version>
+            <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/CoachCam-v1.6.0.html</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/spectrevisuals/CoachCam/releases/download/v1.6.0/CoachCam-v1.6.0.dmg" length="4296045" type="application/octet-stream" sparkle:edSignature="0fq2AeS+lN8xchXi19rAA6LSl960OScTa4UwSGzTdIAVu/BSZfitK5+gTOW4ISmT8goxi6HH8F68t1IPy7sIBA=="/>
+        </item>
+    </channel>
 </rss>

@@ -5,6 +5,11 @@ options:
     macOS: "14.0"
   xcodeVersion: "15.0"
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.9.3"
+
 
 settings:
   base:
@@ -29,16 +34,21 @@ targets:
           - "**/*.swift"
         excludes:
           - "**/*.md"
+    dependencies:
+      - package: Sparkle
     resources:
       - CoachCap/Assets.xcassets
     info:
       path: CoachCap/Info.plist
       properties:
-        CFBundleShortVersionString: "1.5.1"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "1.6.0"
+        CFBundleVersion: "15"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "CoachCap uses your camera to record a face-cam overlay on your screen recordings."
         NSMicrophoneUsageDescription: "CoachCap uses your microphone to record audio commentary with your screen recordings."
+        SUFeedURL: "https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/appcast.xml"
+        SUPublicEDKey: "rduKIaou/mAjUKF6/eOVw5+kc2grUFBw1kncIoqqRaA="
+        SUEnableAutomaticChecks: true
     entitlements:
       path: CoachCap/CoachCap-Release.entitlements
     configurations:
