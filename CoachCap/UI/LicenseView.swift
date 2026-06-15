@@ -53,7 +53,7 @@ struct LicenseView: View {
 
     private var trialBox: some View {
         VStack(spacing: 8) {
-            Text("free trial: 120 seconds per recording")
+            Text("free plan · \(RecordingQuota.remaining()) of \(FreeTier.maxRecordingsPerMonth) recordings left this month · 2-min limit · watermark")
                 .font(Brand.font(12))
                 .foregroundStyle(Brand.muted)
             HStack(spacing: 10) {

@@ -20,7 +20,6 @@ import AppKit
 ///     accessed under `captureLock`.
 @MainActor
 final class RecordingSession: NSObject, ObservableObject {
-    private static let isTestBuild = true // Set to false for production
 
     // MARK: Published (main actor)
     @Published var isRunning = false
@@ -107,9 +106,9 @@ final class RecordingSession: NSObject, ObservableObject {
         _camera    = camera
         outputURL  = config.outputURL
 
-        // Free tier: 120s limit (disabled for test builds)
-        let effectivelyLicensed = isLicensed || Self.isTestBuild
-        if !effectivelyLicensed {
+        // Free tier: cap recording length. Gated on the single licence source (isLicensed
+        // is passed straight from LicenseManager.shared.isUnlocked).
+        if !isLicensed {
             startFreeRecordingTimer()
         } else {
             recordingTimeRemaining = nil
@@ -232,17 +231,18 @@ final class RecordingSession: NSObject, ObservableObject {
 
     private func startFreeRecordingTimer() {
         freeTimerTask?.cancel()
-        recordingTimeRemaining = 120
+        let cap = FreeTier.maxRecordingSeconds
+        recordingTimeRemaining = cap
         freeTimerTask = Task { @MainActor in
-            for second in stride(from: 120, through: 1, by: -1) {
+            for second in stride(from: cap, through: 1, by: -1) {
                 if Task.isCancelled { break }
                 recordingTimeRemaining = second
                 try? await Task.sleep(for: .seconds(1))
             }
-            // Time's up — auto stop
+            // Time's up — auto stop with a clear message.
             if isRunning {
                 _ = await stop()
-                errorMessage = "Free tier limited to 120 seconds. Upgrade to record longer."
+                errorMessage = "free recordings are capped at \(cap / 60) minutes — upgrade for unlimited"
             }
         }
     }

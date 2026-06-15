@@ -27,6 +27,7 @@ struct PhotoToolView: View {
     @State private var exportClientName    = ""
     @State private var annotationImage:    NSImage? = nil
     @State private var showAnnotation      = false
+    @ObservedObject private var licenseManager = LicenseManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -305,11 +306,14 @@ struct PhotoToolView: View {
         isSaving = true; errorMsg = nil
         let opts      = makeOptions()
         let pairsSnap = pairs.map { ($0.before, $0.after) }
+        let isPaid    = licenseManager.isUnlocked   // single licence source
         Task.detached(priority: .userInitiated) {
             do {
-                guard let img = PhotoStitcher.stitch(pairs: pairsSnap, options: opts) else {
+                guard var img = PhotoStitcher.stitch(pairs: pairsSnap, options: opts) else {
                     throw StitchError.renderFailed
                 }
+                // Free tier: watermark the comparison (same function as the preview).
+                if !isPaid { img = WatermarkRenderer.apply(to: img) }
                 let url = PhotoStitcher.autoOutputURL()
                 try PhotoStitcher.exportJPEG(img, to: url)
                 await MainActor.run { savedURL = url; annotationImage = img; isSaving = false }
@@ -339,11 +343,20 @@ struct PhotoToolView: View {
 private struct PhotoPanel: View {
     @Binding var image: NSImage?
     @State private var isTargeted = false
+    // The preview shows the watermarked image (free) via the SAME function as the export,
+    // so what the coach sees matches the client's copy and a screenshot can't bypass it.
+    @ObservedObject private var license = LicenseManager.shared
+    @State private var displayImage: NSImage?
+
+    private func updateDisplay() {
+        guard let img = image else { displayImage = nil; return }
+        displayImage = license.isUnlocked ? img : WatermarkRenderer.apply(to: img)
+    }
 
     var body: some View {
         ZStack {
-            if let img = image {
-                ZoomablePhoto(image: img)
+            if image != nil {
+                ZoomablePhoto(image: displayImage ?? image!)
                     .overlay(alignment: .topTrailing) {
                         Button { image = nil } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -358,6 +371,9 @@ private struct PhotoPanel: View {
                 dropPlaceholder
             }
         }
+        .onAppear { updateDisplay() }
+        .onChange(of: image) { _, _ in updateDisplay() }
+        .onChange(of: license.isUnlocked) { _, _ in updateDisplay() }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.bg)
         .overlay(

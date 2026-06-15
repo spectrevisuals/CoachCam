@@ -9,12 +9,13 @@ struct RecordingView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var session = RecordingSession()
     @StateObject private var camera  = CameraManager()
-    @StateObject private var licenseManager = LicenseManager()
+    @ObservedObject private var licenseManager = LicenseManager.shared
 
     @State private var showSavedBanner = false
     @State private var floatingPanel: FloatingCameraPanel? = nil
     @State private var showLowStorageAlert = false
     @State private var freeGBText = ""
+    @State private var showQuotaAlert = false
 
     /// Recordings use roughly 30 MB/minute; warn below ~2 GB so a coach never loses a
     /// check-in to a full disk.
@@ -73,6 +74,11 @@ struct RecordingView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Only \(freeGBText) GB free on this Mac. Recordings use about 30 MB per minute, so a long check-in could fail and be lost. Free up some space to be safe.")
+        }
+        .alert("Monthly limit reached", isPresented: $showQuotaAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Free accounts can make \(FreeTier.maxRecordingsPerMonth) recordings per calendar month, and you've used them all. Your count resets on the 1st. Upgrade for unlimited recordings.")
         }
     }
 
@@ -221,10 +227,9 @@ struct RecordingView: View {
                         .font(.system(.caption, design: .monospaced).bold())
                         .foregroundColor(.white)
                     if let remaining = session.recordingTimeRemaining {
-                        Spacer()
-                        Text("Free: \(remaining)s left")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundColor(remaining < 10 ? .red : .white.opacity(0.7))
+                        Text("· free · \(remaining)s left")
+                            .font(Brand.font(11, .semibold))
+                            .foregroundStyle(remaining <= 10 ? Brand.danger : Brand.accent2)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -240,23 +245,37 @@ struct RecordingView: View {
     private var savedBanner: some View {
         VStack {
             Spacer()
-            HStack {
-                Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                Text("Saved to Movies/CoachCap")
-                if let url = appState.lastSavedURL {
-                    Button("Show in Finder") { ExportManager.revealInFinder(url) }
-                        .buttonStyle(.link)
-                    Button("Copy") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.writeObjects([url as NSURL])
+            VStack(spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color(hex: 0x28C840))
+                    Text("recording saved").font(Brand.font(14, .semibold)).foregroundStyle(Brand.text)
+                    Spacer()
+                    Button { withAnimation { showSavedBanner = false } } label: {
+                        Image(systemName: "xmark").font(.system(size: 11)).foregroundStyle(Brand.muted)
                     }
-                    .buttonStyle(.link)
+                    .buttonStyle(.plain)
+                }
+                if let url = appState.lastSavedURL {
+                    HStack(spacing: 10) {
+                        WhatsAppShareButton(url: url,
+                                            clientName: appState.whatsAppClientName
+                                                ?? (appState.clientName.isEmpty ? nil : appState.clientName))
+                        Button("show in finder") { ExportManager.revealInFinder(url) }
+                            .buttonStyle(OutlineButtonStyle())
+                    }
+                    Text("drag the highlighted video from finder into your whatsapp chat")
+                        .font(Brand.font(11))
+                        .foregroundStyle(Brand.muted)
+                        .multilineTextAlignment(.center)
                 }
             }
-            .padding()
+            .padding(16)
+            .frame(width: 380)
             .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.bottom, 20)
+            .clipShape(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous).stroke(Brand.border, lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
+            .padding(.bottom, 24)
         }
     }
 
@@ -442,6 +461,12 @@ struct RecordingView: View {
     private func startWithCountdown() {
         guard !appState.isSaving, appState.countdownValue == nil else { return }
 
+        // Free-tier monthly recording cap (gated on the single licence source).
+        if !licenseManager.isUnlocked && !RecordingQuota.canRecord() {
+            showQuotaAlert = true
+            return
+        }
+
         // Storage safety check — don't let a coach lose a check-in to a full disk.
         if let free = Self.freeDiskBytes(), free < Self.minFreeBytes {
             freeGBText = String(format: "%.1f", Double(free) / 1_000_000_000)
@@ -494,6 +519,8 @@ struct RecordingView: View {
                                         cameraFloating: floatingPanel != nil)
                 appState.isRecording = true
                 appState.startTimer()
+                // Count this recording against the free monthly quota (paid = unlimited).
+                if !licenseManager.isUnlocked { RecordingQuota.recordOne() }
             } catch {
                 appState.errorMessage = error.localizedDescription
             }
@@ -505,12 +532,12 @@ struct RecordingView: View {
         appState.stopTimer()
         appState.isRecording = false
         Task {
+            // session.stop() awaits finishWriting, so `url` points to a fully-written file.
             let url = await session.stop()
             appState.lastSavedURL = url
             appState.isSaving = false
+            // Persist the banner — it holds the "send to whatsapp" action — until dismissed.
             withAnimation { showSavedBanner = true }
-            try? await Task.sleep(for: .seconds(4))
-            withAnimation { showSavedBanner = false }
         }
     }
 

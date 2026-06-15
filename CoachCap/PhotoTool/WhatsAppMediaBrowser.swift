@@ -246,6 +246,7 @@ struct WhatsAppMediaBrowser: View {
     let onAssign: (NSImage, AssignSlot) -> Void
     enum AssignSlot { case lastWeek, thisWeek }
 
+    @EnvironmentObject var appState: AppState
     @StateObject private var loader = WhatsAppMediaLoader()
     @State private var selectedContact: String?   = nil
     @State private var dateRange: DateRangeOption = .lastMonth
@@ -299,6 +300,7 @@ struct WhatsAppMediaBrowser: View {
                 .labelsHidden()
                 .frame(width: 220)
                 .onChange(of: selectedContact) { _, contact in
+                    appState.whatsAppClientName = contact
                     if let contact {
                         Task { await loader.loadPhotos(for: contact, since: dateRange.cutoffDate) }
                     }

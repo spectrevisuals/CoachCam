@@ -17,7 +17,12 @@ import Foundation
 @MainActor
 final class LicenseManager: ObservableObject {
 
-    // UI-facing surface (unchanged: `isUnlocked` still gates the trial cap).
+    /// The ONE shared licence state for the whole app. Every free-tier gate (recording
+    /// length cap, monthly recording count, watermark) reads `LicenseManager.shared.isUnlocked`
+    /// — a single source so paid/free can never drift between the three limits.
+    static let shared = LicenseManager()
+
+    // UI-facing surface — `isUnlocked == true` means PAID (valid Lemon Squeezy licence).
     @Published private(set) var isUnlocked = false
     @Published private(set) var deviceActive = false      // a license is stored on this Mac
     @Published private(set) var isWorking = false

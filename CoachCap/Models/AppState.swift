@@ -26,6 +26,10 @@ final class AppState: ObservableObject {
     // Client name for auto-naming the output file
     @Published var clientName: String = ""
 
+    // The WhatsApp contact the coach last selected in the photo tool — used to open the
+    // correct chat when sending a check-in video.
+    @Published var whatsAppClientName: String? = nil
+
     // Last saved file (for "Show in Finder" button)
     @Published var lastSavedURL: URL? = nil
 

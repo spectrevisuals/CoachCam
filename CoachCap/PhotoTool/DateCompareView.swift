@@ -175,6 +175,7 @@ final class DateCompareLoader: ObservableObject {
 // MARK: - Browse View (shared client, two independent date panels)
 
 struct BrowseView: View {
+    @EnvironmentObject var appState: AppState
     @StateObject private var contactLoader = DateCompareLoader()
     @State private var selectedContact: String? = nil
     @State private var linked       = false
@@ -206,6 +207,7 @@ struct BrowseView: View {
                         }
                     }
                     .labelsHidden().frame(width: 240)
+                    .onChange(of: selectedContact) { _, c in appState.whatsAppClientName = c }
                 }
 
                 Divider().frame(height: 20)
@@ -466,7 +468,7 @@ private struct BrowsePanelView: View {
             ZStack {
                 Color.black
                 if let t = currentPhotos[index].thumb {
-                    Image(nsImage: t).resizable().scaledToFit()
+                    WatermarkedImage(image: t)
                 } else {
                     ProgressView()
                 }
@@ -484,6 +486,7 @@ struct DateCompareView: View {
     /// Called with (lastWeekImage, thisWeekImage) when user taps "+ Add pair"
     let onAddPair: (NSImage?, NSImage?) -> Void
 
+    @EnvironmentObject var appState: AppState
     @StateObject private var dcLoader = DateCompareLoader()
     @State private var leftDateKey:  String? = nil
     @State private var rightDateKey: String? = nil
@@ -547,6 +550,7 @@ struct DateCompareView: View {
             }
         }
         .onChange(of: dcLoader.selectedContact) { _, contact in
+            appState.whatsAppClientName = contact
             leftDateKey = nil; rightDateKey = nil
             leftIndex = 0; rightIndex = 0
             if let c = contact { Task { await dcLoader.loadDates(for: c) } }
@@ -788,9 +792,7 @@ struct DateCompareView: View {
                     ZStack {
                         Color.black
                         if let t = item.thumb {
-                            Image(nsImage: t)
-                                .resizable()
-                                .scaledToFit()
+                            WatermarkedImage(image: t)
                         } else {
                             ProgressView()
                         }

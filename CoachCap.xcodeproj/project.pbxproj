@@ -22,16 +22,19 @@
 		4EC2B677B89F0FE9962102F8 /* PhotoStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */; };
 		5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */; };
 		5BED838DFC1E2E8F3A0673FE /* FloatingCameraPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */; };
+		5DD1786847517DFACF5355D0 /* WatermarkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 378E5076B63E9C494D86B4F8 /* WatermarkRenderer.swift */; };
 		6A826E390AFCA7BC1120E8AC /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A6F6E3C39AE945A15094D144 /* Sparkle */; };
 		6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5047323346857C0344F8B834 /* ContentView.swift */; };
 		74C629C9E54499D2DE4B6167 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */; };
 		77CB74C3DB382FCD045F0FA3 /* Quicksand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4AF37094750898D0CD8C49BC /* Quicksand.ttf */; };
+		908780C54FA67B1611B2A594 /* FreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4A3F8262610CFE599FDEA7 /* FreeTier.swift */; };
 		9AF0544A8ABA5DF7BC29EA5C /* LemonSqueezyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */; };
 		A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */; };
 		B5E0A426F6631A0049F33CDE /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1FA0EE5C1EA9FD2DBD3B7F9 /* CheckForUpdatesView.swift */; };
 		B7332BB999E58684393E77E9 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB87094AD033A9921289BDE5 /* Keychain.swift */; };
 		C6DC436E70DCF775CEA90419 /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F262202F43247BCA770F183 /* RecordingView.swift */; };
 		CDEEDE28AA090C625B43F820 /* FrameCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B202A972781663A1E62EDD6 /* FrameCompositor.swift */; };
+		CE64E539EBD722E72F53F339 /* WhatsAppShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDDB351DC51C5F94B3B4840D /* WhatsAppShare.swift */; };
 		D54D3A156A7B67C3BE3C97D2 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 852B45D3697090E8F0B88312 /* CameraManager.swift */; };
 		DAE2EBC1769D180E62C85E11 /* CoachCapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EDFCBA28C1F4EB10570E46 /* CoachCapApp.swift */; };
 		F36BEDE81E80A3A2345C0BF7 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCA12EB0821EB2A466211D5 /* AppState.swift */; };
@@ -41,7 +44,9 @@
 		03918194DCDA149CA089450A /* AnnotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationView.swift; sourceTree = "<group>"; };
 		059730CB03C1E1B1869367A8 /* DisplayList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayList.swift; sourceTree = "<group>"; };
 		19F8AA2791B72BEAC4BEF73C /* CameraPreviewLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewLayer.swift; sourceTree = "<group>"; };
+		1D4A3F8262610CFE599FDEA7 /* FreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTier.swift; sourceTree = "<group>"; };
 		3722468CB77EB086D2FB7748 /* RecordingConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfig.swift; sourceTree = "<group>"; };
+		378E5076B63E9C494D86B4F8 /* WatermarkRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatermarkRenderer.swift; sourceTree = "<group>"; };
 		39A6488731B2659C66640220 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
 		406844247D2A2F801DD13664 /* LicenseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseView.swift; sourceTree = "<group>"; };
 		4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStitcher.swift; sourceTree = "<group>"; };
@@ -66,6 +71,7 @@
 		E1FA0EE5C1EA9FD2DBD3B7F9 /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
 		E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		EB87094AD033A9921289BDE5 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		EDDB351DC51C5F94B3B4840D /* WhatsAppShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppShare.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,6 +103,7 @@
 				03918194DCDA149CA089450A /* AnnotationView.swift */,
 				8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */,
 				4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */,
+				378E5076B63E9C494D86B4F8 /* WatermarkRenderer.swift */,
 				63E72A025990F2AE436EFFF8 /* WhatsAppMediaBrowser.swift */,
 			);
 			path = PhotoTool;
@@ -112,6 +119,7 @@
 				406844247D2A2F801DD13664 /* LicenseView.swift */,
 				CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */,
 				5F262202F43247BCA770F183 /* RecordingView.swift */,
+				EDDB351DC51C5F94B3B4840D /* WhatsAppShare.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -153,6 +161,7 @@
 			children = (
 				DDCA12EB0821EB2A466211D5 /* AppState.swift */,
 				6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */,
+				1D4A3F8262610CFE599FDEA7 /* FreeTier.swift */,
 				EB87094AD033A9921289BDE5 /* Keychain.swift */,
 				87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */,
 				771B2E7E8F564068586EE10C /* License.swift */,
@@ -286,6 +295,7 @@
 				2406C52DC94FABD46D9E08D2 /* ExportManager.swift in Sources */,
 				5BED838DFC1E2E8F3A0673FE /* FloatingCameraPanel.swift in Sources */,
 				CDEEDE28AA090C625B43F820 /* FrameCompositor.swift in Sources */,
+				908780C54FA67B1611B2A594 /* FreeTier.swift in Sources */,
 				B7332BB999E58684393E77E9 /* Keychain.swift in Sources */,
 				9AF0544A8ABA5DF7BC29EA5C /* LemonSqueezyClient.swift in Sources */,
 				31EB1C41B05D73AA00627EAF /* License.swift in Sources */,
@@ -295,7 +305,9 @@
 				09C3BF0BF9D38DD00B674CED /* RecordingConfig.swift in Sources */,
 				2C9488B383110E3263C61466 /* RecordingSession.swift in Sources */,
 				C6DC436E70DCF775CEA90419 /* RecordingView.swift in Sources */,
+				5DD1786847517DFACF5355D0 /* WatermarkRenderer.swift in Sources */,
 				2CF12ADC89D29769D217CA35 /* WhatsAppMediaBrowser.swift in Sources */,
+				CE64E539EBD722E72F53F339 /* WhatsAppShare.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
