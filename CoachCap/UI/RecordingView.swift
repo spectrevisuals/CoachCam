@@ -329,48 +329,58 @@ struct RecordingView: View {
     // MARK: Styled dropdown pills
 
     private var cameraPill: some View {
-        dropdownPill(icon: "video", label: selectedCameraLabel) {
-            Picker("", selection: $appState.selectedCameraID) {
-                Text("default camera").tag(String?.none)
-                ForEach(camera.availableCameras, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
-            }.labelsHidden()
-        }
+        dropdownPill(icon: "video", label: selectedCameraLabel,
+                     selection: $appState.selectedCameraID,
+                     options: [("default camera", String?.none)]
+                        + camera.availableCameras.map { ($0.localizedName, Optional($0.uniqueID)) })
     }
 
     private var micPill: some View {
-        dropdownPill(icon: "mic", label: selectedMicLabel) {
-            Picker("", selection: $appState.selectedMicID) {
-                Text("default mic").tag(String?.none)
-                ForEach(camera.availableMics, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
-            }.labelsHidden()
-        }
+        dropdownPill(icon: "mic", label: selectedMicLabel,
+                     selection: $appState.selectedMicID,
+                     options: [("default mic", String?.none)]
+                        + camera.availableMics.map { ($0.localizedName, Optional($0.uniqueID)) })
     }
 
     private var displayPill: some View {
-        dropdownPill(icon: "display", label: selectedDisplayLabel) {
-            Picker("", selection: $appState.selectedDisplayID) {
-                ForEach(availableDisplays) { Text($0.label).tag(Optional($0.id)) }
-            }.labelsHidden()
-        }
+        dropdownPill(icon: "display", label: selectedDisplayLabel,
+                     selection: $appState.selectedDisplayID,
+                     options: availableDisplays.map { ($0.label, Optional($0.id)) })
     }
 
-    @ViewBuilder
-    private func dropdownPill<Content: View>(icon: String, label: String,
-                                             @ViewBuilder content: () -> Content) -> some View {
+    /// Styled dropdown. The pill styling lives INSIDE the menu label (with a hit-testable
+    /// content shape) so the whole pill is clickable, and options are Buttons so selection
+    /// is reliable — wrapping a Menu in an outer .frame/.background broke click handling.
+    private func dropdownPill<T: Hashable>(icon: String, label: String,
+                                           selection: Binding<T>,
+                                           options: [(String, T)]) -> some View {
         Menu {
-            content()
+            ForEach(options, id: \.1) { opt in
+                Button {
+                    selection.wrappedValue = opt.1
+                } label: {
+                    if selection.wrappedValue == opt.1 {
+                        Label(opt.0, systemImage: "checkmark")
+                    } else {
+                        Text(opt.0)
+                    }
+                }
+            }
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: icon).font(.system(size: 14)).foregroundStyle(Brand.muted)
                 Text(label).font(Brand.font(13)).foregroundStyle(Brand.text.opacity(0.85)).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 10)).foregroundStyle(Brand.muted)
             }
-            .fixedSize()
+            .frame(height: Brand.controlHeight)
+            .padding(.horizontal, 13)
+            .background(RoundedRectangle(cornerRadius: Brand.rControl, style: .continuous).fill(Brand.control))
+            .overlay(RoundedRectangle(cornerRadius: Brand.rControl, style: .continuous).stroke(Brand.controlBorder, lineWidth: 1))
+            .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .brandPill()
         .disabled(session.isRunning)
     }
 
