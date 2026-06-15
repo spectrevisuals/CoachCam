@@ -9,16 +9,22 @@ struct ContentView: View {
         if showTranslocationAlert {
             translocatedAlert
         } else {
-            TabView(selection: $appState.activeTab) {
-                RecordingView()
-                    .tabItem { Label("Record", systemImage: "record.circle.fill") }
-                    .tag(AppTab.recorder)
-
-                PhotoToolView()
-                    .tabItem { Label("Before / After", systemImage: "photo.on.rectangle.angled") }
-                    .tag(AppTab.photoTool)
+            VStack(spacing: 0) {
+                topTabBar
+                // Both views stay alive (keeps the camera session running) — we just
+                // show/hide them so switching tabs is instant and stateful.
+                ZStack {
+                    RecordingView()
+                        .opacity(appState.activeTab == .recorder ? 1 : 0)
+                        .allowsHitTesting(appState.activeTab == .recorder)
+                    PhotoToolView()
+                        .opacity(appState.activeTab == .photoTool ? 1 : 0)
+                        .allowsHitTesting(appState.activeTab == .photoTool)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(minWidth: 960, idealWidth: 1100, minHeight: 640, idealHeight: 720)
+            .frame(minWidth: 1120, idealWidth: 1240, minHeight: 700, idealHeight: 780)
+            .background(Brand.bg)
             .alert("Error", isPresented: Binding(
                 get: { appState.errorMessage != nil },
                 set: { if !$0 { appState.errorMessage = nil } }
@@ -31,6 +37,22 @@ struct ContentView: View {
                 checkTranslocation()
             }
         }
+    }
+
+    /// Top bar with the shared brand segmented control (sits in the hidden-title-bar area;
+    /// centred so it clears the traffic-light buttons on the left).
+    private var topTabBar: some View {
+        ZStack {
+            BrandSegmented(selection: $appState.activeTab, options: [
+                ("record", AppTab.recorder),
+                ("before / after", AppTab.photoTool)
+            ])
+            .frame(width: 300)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(Brand.bg)
+        .overlay(Rectangle().fill(Brand.border).frame(height: 1), alignment: .bottom)
     }
 
     private var translocatedAlert: some View {

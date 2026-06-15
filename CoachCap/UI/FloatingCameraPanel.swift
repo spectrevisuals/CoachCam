@@ -61,6 +61,7 @@ private struct FloatingCameraView: View {
                 .padding(.bottom, 4)
         }
         .frame(width: 160, height: 218)
+        .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
         .animation(.easeOut(duration: 0.2), value: appState.countdownValue)
         .animation(.easeOut(duration: 0.2), value: appState.isRecording)
     }
@@ -157,14 +158,14 @@ private struct FloatingCameraView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(FloatButtonStyle(color: appState.isPaused ? .green : .orange))
+                .buttonStyle(FloatButtonStyle(color: appState.isPaused ? Color(hex: 0x28C840) : Brand.accent))
 
                 Button(action: onStop) {
                     Image(systemName: "stop.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(FloatButtonStyle(color: .red))
+                .buttonStyle(FloatButtonStyle(color: Brand.danger))
             }
 
         } else {
@@ -191,7 +192,7 @@ private struct FloatButtonStyle: ButtonStyle {
         configuration.label
             .foregroundColor(.white)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: Brand.rControl, style: .continuous)
                     .fill(color.opacity(configuration.isPressed ? 0.5 : 0.9))
             )
     }

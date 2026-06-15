@@ -261,7 +261,7 @@ struct BrowseView: View {
                 Spacer()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(Brand.bgElev)
 
             Divider()
 
@@ -456,9 +456,11 @@ private struct BrowsePanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
         } else if currentPhotos.isEmpty {
-            Color.black.overlay(
-                Text(dateKey == nil ? "Pick a date above" : "No photos")
-                    .foregroundColor(.secondary).font(.caption)
+            Brand.bg.overlay(
+                BrandEmptyState(icon: dateKey == nil ? "calendar" : "photo.on.rectangle",
+                                title: dateKey == nil ? "pick a date" : "no photos",
+                                subtitle: dateKey == nil ? "choose a check-in date above" : "no photos on this date",
+                                iconSize: 20, boxSize: 48)
             )
         } else if currentPhotos.indices.contains(index) {
             ZStack {
@@ -703,9 +705,11 @@ struct DateCompareView: View {
     }
 
     private func emptyState(_ msg: String) -> some View {
-        Text(msg).foregroundColor(.secondary).font(.caption)
+        BrandEmptyState(icon: "person.crop.square.badge.camera",
+                        title: "pick a client",
+                        subtitle: msg.lowercased())
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
+            .background(Brand.bg)
     }
 
     // MARK: Photo side panel
@@ -773,9 +777,11 @@ struct DateCompareView: View {
                 if loading {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if photos.isEmpty {
-                    Color.black.overlay(
-                        Text(dateKey.wrappedValue == nil ? "Pick a date above" : "No photos")
-                            .foregroundColor(.secondary).font(.caption)
+                    Brand.bg.overlay(
+                        BrandEmptyState(icon: dateKey.wrappedValue == nil ? "calendar" : "photo.on.rectangle",
+                                        title: dateKey.wrappedValue == nil ? "pick a date" : "no photos",
+                                        subtitle: dateKey.wrappedValue == nil ? "choose a check-in date above" : "no photos on this date",
+                                        iconSize: 20, boxSize: 48)
                     )
                 } else if photos.indices.contains(index.wrappedValue) {
                     let item = photos[index.wrappedValue]

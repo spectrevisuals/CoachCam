@@ -53,6 +53,10 @@ final class RecordingSession: NSObject, ObservableObject {
         var isPaused: Bool      = false
         var pipRect   = CGRect(x: 0.72, y: 0.04, width: 0.24, height: 0.24)
         var outputSize = CGSize(width: 1920, height: 1080)
+        // When the floating cam window is up, it IS the on-screen face cam (captured by
+        // the screen recording), so we must NOT also burn a PiP — otherwise the camera
+        // shows up twice in the saved video.
+        var cameraFloating = false
     }
 
     private nonisolated func locked<T>(_ work: (inout CS) -> T) -> T {
@@ -97,7 +101,7 @@ final class RecordingSession: NSObject, ObservableObject {
 
     // MARK: - Start
 
-    func start(config: RecordingConfig, camera: CameraManager, isLicensed: Bool) async throws {
+    func start(config: RecordingConfig, camera: CameraManager, isLicensed: Bool, cameraFloating: Bool = false) async throws {
         guard !isRunning else { return }
 
         _camera    = camera
@@ -114,6 +118,7 @@ final class RecordingSession: NSObject, ObservableObject {
         locked {
             $0.pipRect    = config.pipNormalizedRect
             $0.outputSize = config.videoSize
+            $0.cameraFloating = cameraFloating   // set before any frame is processed
         }
 
         try setupWriter(config: config)
@@ -271,6 +276,12 @@ final class RecordingSession: NSObject, ObservableObject {
         compositor.mirrorCamera = mirrored
     }
 
+    /// Tells the recorder whether the face cam is currently a floating on-screen window.
+    /// While floating, the burned-in PiP is suppressed so the camera isn't recorded twice.
+    func setCameraFloating(_ floating: Bool) {
+        locked { $0.cameraFloating = floating }
+    }
+
     // MARK: - Private setup
 
     private func setupWriter(config: RecordingConfig) throws {
@@ -361,11 +372,11 @@ extension RecordingSession: SCStreamOutput {
         guard let vi = vidInput, vi.isReadyForMoreMediaData else { return }
         let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
 
-        let (isPaused, pipRect, outputSize, totalPaused, tZero, isFirst) = locked { s -> (Bool, CGRect, CGSize, CMTime, CMTime, Bool) in
-            if s.isPaused { return (true, s.pipRect, s.outputSize, s.totalPaused, .zero, false) }
+        let (isPaused, pipRect, outputSize, totalPaused, tZero, isFirst, floating) = locked { s -> (Bool, CGRect, CGSize, CMTime, CMTime, Bool, Bool) in
+            if s.isPaused { return (true, s.pipRect, s.outputSize, s.totalPaused, .zero, false, s.cameraFloating) }
             let first = s.tZero == nil
             if first { s.tZero = rawPTS }
-            return (false, s.pipRect, s.outputSize, s.totalPaused, s.tZero!, first)
+            return (false, s.pipRect, s.outputSize, s.totalPaused, s.tZero!, first, s.cameraFloating)
         }
         guard !isPaused else { return }
 
@@ -374,7 +385,9 @@ extension RecordingSession: SCStreamOutput {
         let adjPTS = CMTimeSubtract(CMTimeSubtract(rawPTS, tZero), totalPaused)
         guard CMTIME_IS_VALID(adjPTS), adjPTS >= .zero else { return }
 
-        let camBuf = _camera?.latestBuffer()
+        // While the cam is floating it's recorded as an on-screen window, so suppress the
+        // burned-in PiP to avoid a duplicate face cam.
+        let camBuf = floating ? nil : _camera?.latestBuffer()
         if let out = compositor.composite(screenSample: sample,
                                           cameraBuffer: camBuf,
                                           pipRect: pipRect,

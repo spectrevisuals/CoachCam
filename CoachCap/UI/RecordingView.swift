@@ -13,6 +13,19 @@ struct RecordingView: View {
 
     @State private var showSavedBanner = false
     @State private var floatingPanel: FloatingCameraPanel? = nil
+    @State private var showLowStorageAlert = false
+    @State private var freeGBText = ""
+
+    /// Recordings use roughly 30 MB/minute; warn below ~2 GB so a coach never loses a
+    /// check-in to a full disk.
+    private static let minFreeBytes: Int64 = 2_000_000_000
+    private static func freeDiskBytes() -> Int64? {
+        let url = (try? FileManager.default.url(for: .moviesDirectory, in: .userDomainMask,
+                                                appropriateFor: nil, create: false))
+            ?? URL(fileURLWithPath: NSHomeDirectory())
+        return (try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage
+    }
 
     private var isOnMacOS15OrLater: Bool {
         if #available(macOS 15.0, *) {
@@ -24,9 +37,7 @@ struct RecordingView: View {
     var body: some View {
         VStack(spacing: 0) {
             LicenseView(licenseManager: licenseManager)
-            Divider()
             previewArea
-            Divider()
             controlBar
         }
         .onAppear {
@@ -51,7 +62,17 @@ struct RecordingView: View {
             if notif.object as AnyObject === floatingPanel {
                 cancelCountdown()
                 floatingPanel = nil
+                session.setCameraFloating(false)
             }
+        }
+        .alert("Low disk space", isPresented: $showLowStorageAlert) {
+            Button("Record anyway") { beginCountdown() }
+            Button("Open Storage Settings") {
+                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.settings.Storage")!)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Only \(freeGBText) GB free on this Mac. Recordings use about 30 MB per minute, so a long check-in could fail and be lost. Free up some space to be safe.")
         }
     }
 
@@ -60,7 +81,10 @@ struct RecordingView: View {
     @ViewBuilder
     private var previewArea: some View {
         ZStack {
-            Color.black
+            Brand.bg
+            RadialGradient(colors: [Brand.accent.opacity(0.09), .clear],
+                           center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 360)
+                .allowsHitTesting(false)
 
             if appState.webcamOnlyMode {
                 CameraPreviewView(camera: camera)
@@ -127,24 +151,23 @@ struct RecordingView: View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 // Screen placeholder (actual screen is being captured, not previewed here)
-                Color(NSColor.windowBackgroundColor)
+                Color.clear
                     .overlay(
-                        VStack(spacing: 12) {
-                            Image(systemName: session.isRunning ? "record.circle.fill" : "display")
-                                .font(.system(size: 48))
-                                .foregroundColor(session.isRunning ? .red : .secondary)
-                            Text(session.isRunning
-                                 ? "Recording your screen…"
-                                 : "Screen + face cam mode")
-                                .foregroundColor(.secondary)
-                        }
+                        BrandEmptyState(
+                            icon: session.isRunning ? "record.circle.fill" : "desktopcomputer",
+                            title: session.isRunning ? "recording your screen…" : "screen + face cam",
+                            subtitle: "your screen appears here when you hit record",
+                            iconSize: 26, boxSize: 60)
                     )
 
-                // Draggable PiP box
-                PiPOverlayView(camera: camera,
-                               pipRect: $appState.pipRect,
-                               canvasSize: geo.size,
-                               onChanged: { session.updatePiP($0) })
+                // Draggable PiP box — hidden while the cam is floating, otherwise the
+                // main window would show (and record) a second copy of the face cam.
+                if floatingPanel == nil {
+                    PiPOverlayView(camera: camera,
+                                   pipRect: $appState.pipRect,
+                                   canvasSize: geo.size,
+                                   onChanged: { session.updatePiP($0) })
+                }
             }
         }
     }
@@ -240,105 +263,168 @@ struct RecordingView: View {
     // MARK: Control Bar
 
     private var controlBar: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 12) {
             // Client name
-            TextField("Client name (optional)", text: $appState.clientName)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+            TextField("client name (optional)", text: $appState.clientName)
+                .textFieldStyle(.plain)
+                .font(Brand.font(13))
+                .foregroundStyle(Brand.text)
+                .frame(maxWidth: .infinity)
+                .brandPill()
                 .disabled(session.isRunning)
 
-            Divider().frame(height: 32)
-
-            // Source pickers
-            cameraPicker
-            micPicker
+            // Source dropdowns
+            cameraPill
+            micPill
             if !appState.webcamOnlyMode && availableDisplays.count > 1 {
-                displayPicker
+                displayPill
             }
 
-            Divider().frame(height: 32)
+            // Webcam-only / mirror segmented control
+            segmentedModes
 
-            // Mode toggle
-            Toggle("Webcam only", isOn: $appState.webcamOnlyMode)
-                .disabled(session.isRunning)
-                .toggleStyle(.checkbox)
-
-            Toggle("Mirror", isOn: $camera.mirrorEnabled)
-                .toggleStyle(.checkbox)
-                .onChange(of: camera.mirrorEnabled) { _, mirrored in
-                    session.updateMirror(mirrored)
+            // Floating cam
+            Button { toggleFloatingCam() } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "pip")
+                    Text(floatingPanel != nil ? "dock cam" : "float cam")
                 }
-
-            // Floating cam toggle
-            Button(floatingPanel != nil ? "Dock Cam" : "Float Cam") {
-                toggleFloatingCam()
             }
-            .buttonStyle(BigButtonStyle(color: floatingPanel != nil ? .secondary : .blue))
+            .buttonStyle(OutlineButtonStyle(active: floatingPanel != nil))
 
-            Spacer()
-
-            // Main action buttons
+            // Main action
             if session.isRunning {
-                // Pause/Resume
-                Button(session.isPaused ? "Resume" : "Pause") {
-                    if session.isPaused { session.resume(); appState.isPaused = false; appState.resumeTimer() }
-                    else               { session.pause();  appState.isPaused = true;  appState.pauseTimer()  }
+                Button { togglePause() } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: session.isPaused ? "play.fill" : "pause.fill")
+                        Text(session.isPaused ? "resume" : "pause")
+                    }
                 }
-                .buttonStyle(BigButtonStyle(color: .orange))
+                .buttonStyle(PrimaryButtonStyle(color: Brand.accent))
                 .keyboardShortcut("p")
 
-                // Stop
-                Button("Stop & Save") { stopAndSave() }
-                    .buttonStyle(BigButtonStyle(color: .red))
-                    .keyboardShortcut(".")
+                Button { stopAndSave() } label: {
+                    HStack(spacing: 7) { Image(systemName: "stop.fill"); Text("stop & save") }
+                }
+                .buttonStyle(PrimaryButtonStyle(color: Brand.danger))
+                .keyboardShortcut(".")
             } else {
-                Button(appState.isSaving ? "Saving…" : "● Record") { startWithCountdown() }
-                    .buttonStyle(BigButtonStyle(color: .red))
-                    .disabled(appState.isSaving || appState.countdownValue != nil || (!session.permissionGranted && !appState.webcamOnlyMode))
-                    .keyboardShortcut("r")
+                Button { startWithCountdown() } label: {
+                    HStack(spacing: 8) {
+                        Circle().fill(.white).frame(width: 9, height: 9)
+                        Text(appState.isSaving ? "saving…" : "record")
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle(color: Brand.danger))
+                .disabled(appState.isSaving || appState.countdownValue != nil || (!session.permissionGranted && !appState.webcamOnlyMode))
+                .keyboardShortcut("r")
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(Color(NSColor.controlBackgroundColor))
+        .padding(.horizontal, 18)
+        .padding(.vertical, 15)
+        .background(.ultraThinMaterial)
+        .overlay(Rectangle().fill(Brand.border).frame(height: 1), alignment: .top)
     }
 
-    private var cameraPicker: some View {
-        Picker("Camera", selection: $appState.selectedCameraID) {
-            Text("Default").tag(String?.none)
-            ForEach(camera.availableCameras, id: \.uniqueID) { dev in
-                Text(dev.localizedName).tag(Optional(dev.uniqueID))
-            }
+    // MARK: Styled dropdown pills
+
+    private var cameraPill: some View {
+        dropdownPill(icon: "video", label: selectedCameraLabel) {
+            Picker("", selection: $appState.selectedCameraID) {
+                Text("default camera").tag(String?.none)
+                ForEach(camera.availableCameras, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
+            }.labelsHidden()
         }
-        .labelsHidden()
-        .frame(width: 160)
+    }
+
+    private var micPill: some View {
+        dropdownPill(icon: "mic", label: selectedMicLabel) {
+            Picker("", selection: $appState.selectedMicID) {
+                Text("default mic").tag(String?.none)
+                ForEach(camera.availableMics, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
+            }.labelsHidden()
+        }
+    }
+
+    private var displayPill: some View {
+        dropdownPill(icon: "display", label: selectedDisplayLabel) {
+            Picker("", selection: $appState.selectedDisplayID) {
+                ForEach(availableDisplays) { Text($0.label).tag(Optional($0.id)) }
+            }.labelsHidden()
+        }
+    }
+
+    @ViewBuilder
+    private func dropdownPill<Content: View>(icon: String, label: String,
+                                             @ViewBuilder content: () -> Content) -> some View {
+        Menu {
+            content()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: icon).font(.system(size: 14)).foregroundStyle(Brand.muted)
+                Text(label).font(Brand.font(13)).foregroundStyle(Brand.text.opacity(0.85)).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 10)).foregroundStyle(Brand.muted)
+            }
+            .fixedSize()
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .brandPill()
         .disabled(session.isRunning)
     }
 
-    private var micPicker: some View {
-        Picker("Microphone", selection: $appState.selectedMicID) {
-            Text("Default mic").tag(String?.none)
-            ForEach(camera.availableMics, id: \.uniqueID) { dev in
-                Text(dev.localizedName).tag(Optional(dev.uniqueID))
+    private var segmentedModes: some View {
+        HStack(spacing: 3) {
+            segItem("webcam only", active: appState.webcamOnlyMode, icon: nil) {
+                if !session.isRunning { appState.webcamOnlyMode.toggle() }
+            }
+            segItem("mirror", active: camera.mirrorEnabled, icon: "arrow.left.and.right") {
+                camera.mirrorEnabled.toggle()
+                session.updateMirror(camera.mirrorEnabled)
             }
         }
-        .labelsHidden()
-        .frame(width: 160)
-        .disabled(session.isRunning)
+        .padding(3)
+        .frame(height: 40)
+        .background(RoundedRectangle(cornerRadius: Brand.radius, style: .continuous).fill(Brand.control))
+        .overlay(RoundedRectangle(cornerRadius: Brand.radius, style: .continuous).stroke(Brand.controlBorder, lineWidth: 1))
+    }
+
+    private func segItem(_ title: String, active: Bool, icon: String?, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon { Image(systemName: icon).font(.system(size: 13)) }
+                Text(title).font(Brand.font(12, active ? .semibold : .medium))
+            }
+            .foregroundStyle(active ? Brand.text : Brand.muted)
+            .padding(.horizontal, 11).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(active ? Brand.accentSoft : Color.clear))
+        }
+        .buttonStyle(.plain)
     }
 
     private var availableDisplays: [DisplayOption] { DisplayList.available() }
 
-    private var displayPicker: some View {
-        Picker("Screen", selection: $appState.selectedDisplayID) {
-            ForEach(availableDisplays) { d in
-                Text(d.label).tag(Optional(d.id))
-            }
-        }
-        .labelsHidden()
-        .frame(width: 200)
-        .disabled(session.isRunning)
-        .help("Choose which monitor to record")
+    private func togglePause() {
+        if session.isPaused { session.resume(); appState.isPaused = false; appState.resumeTimer() }
+        else               { session.pause();  appState.isPaused = true;  appState.pauseTimer()  }
+    }
+
+    private var selectedCameraLabel: String {
+        if let id = appState.selectedCameraID,
+           let d = camera.availableCameras.first(where: { $0.uniqueID == id }) { return d.localizedName }
+        return "default"
+    }
+    private var selectedMicLabel: String {
+        if let id = appState.selectedMicID,
+           let d = camera.availableMics.first(where: { $0.uniqueID == id }) { return d.localizedName }
+        return "default mic"
+    }
+    private var selectedDisplayLabel: String {
+        if let id = appState.selectedDisplayID,
+           let d = availableDisplays.first(where: { $0.id == id }) { return d.label }
+        return "screen"
     }
 
     // MARK: Actions
@@ -346,6 +432,16 @@ struct RecordingView: View {
     private func startWithCountdown() {
         guard !appState.isSaving, appState.countdownValue == nil else { return }
 
+        // Storage safety check — don't let a coach lose a check-in to a full disk.
+        if let free = Self.freeDiskBytes(), free < Self.minFreeBytes {
+            freeGBText = String(format: "%.1f", Double(free) / 1_000_000_000)
+            showLowStorageAlert = true
+            return
+        }
+        beginCountdown()
+    }
+
+    private func beginCountdown() {
         appState.countdownTask = Task { @MainActor in
             for i in stride(from: 3, through: 1, by: -1) {
                 appState.countdownValue = i
@@ -383,7 +479,9 @@ struct RecordingView: View {
         )
         Task {
             do {
-                try await session.start(config: config, camera: camera, isLicensed: licenseManager.isUnlocked)
+                try await session.start(config: config, camera: camera,
+                                        isLicensed: licenseManager.isUnlocked,
+                                        cameraFloating: floatingPanel != nil)
                 appState.isRecording = true
                 appState.startTimer()
             } catch {
@@ -410,6 +508,7 @@ struct RecordingView: View {
         if let panel = floatingPanel {
             panel.close()
             floatingPanel = nil
+            session.setCameraFloating(false)
         } else {
             let panel = FloatingCameraPanel(
                 camera: camera,
@@ -424,6 +523,7 @@ struct RecordingView: View {
             )
             panel.orderFront(nil)
             floatingPanel = panel
+            session.setCameraFloating(true)
         }
     }
 
@@ -479,14 +579,23 @@ private struct PiPOverlayView: View {
                 }
             }
             .frame(width: pw, height: ph)
-            .clipShape(RoundedRectangle(cornerRadius: pw * 0.08))
-            .overlay(RoundedRectangle(cornerRadius: pw * 0.08)
-                .stroke(Color.white.opacity(0.6), lineWidth: 2))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.85), lineWidth: 1.5))
+            .overlay(alignment: .bottomLeading) {
+                HStack(spacing: 4) {
+                    Circle().fill(Color(hex: 0x28C840)).frame(width: 6, height: 6)
+                    Text("face cam").font(Brand.font(10, .medium)).foregroundStyle(.white)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Color.black.opacity(0.5)))
+                .padding(9)
+            }
 
             // Drag handle hint
-            Image(systemName: "move.3d")
-                .foregroundColor(.white.opacity(0.7))
-                .font(.system(size: 18))
+            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                .foregroundColor(.white.opacity(0.6))
+                .font(.system(size: 15))
         }
         .position(x: px + pw / 2, y: py + ph / 2)
         .gesture(
@@ -505,21 +614,6 @@ private struct PiPOverlayView: View {
                     onChanged(pipRect)
                 }
         )
-    }
-}
-
-// MARK: - Styles
-
-private struct BigButtonStyle: ButtonStyle {
-    var color: Color
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(.white)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 10)
-            .background(color.opacity(configuration.isPressed ? 0.7 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

@@ -3,6 +3,15 @@
     <channel>
         <title>CoachCam</title>
         <item>
+            <title>1.6.3</title>
+            <pubDate>Mon, 15 Jun 2026 08:58:37 +0100</pubDate>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>1.6.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/CoachCam-v1.6.3.html</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/spectrevisuals/CoachCam/releases/download/v1.6.3/CoachCam-v1.6.3.dmg" length="4550134" type="application/octet-stream" sparkle:edSignature="t+7xhY8QTDHcIBl62xIveGDxTlYCZ2UwSjslKpRDQ5exkcgRBpNf1KLGxQDtKWXRN4+a1aVnPGoAtdVyXQ9wBQ=="/>
+        </item>
+        <item>
             <title>1.6.2</title>
             <pubDate>Sun, 14 Jun 2026 16:13:25 +0100</pubDate>
             <sparkle:version>17</sparkle:version>
@@ -19,15 +28,6 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/CoachCam-v1.6.1.html</sparkle:releaseNotesLink>
             <enclosure url="https://github.com/spectrevisuals/CoachCam/releases/download/v1.6.1/CoachCam-v1.6.1.dmg" length="4303057" type="application/octet-stream" sparkle:edSignature="lJCbu7r6WPllUurFCK+vSCCOO4BD4YqgW0iNNCypMm2d9jadyx0s3wnGNgZgFmy5eodXiggJy9kp5MDlLaHAAw=="/>
-        </item>
-        <item>
-            <title>1.6.0</title>
-            <pubDate>Sun, 14 Jun 2026 09:08:15 +0100</pubDate>
-            <sparkle:version>15</sparkle:version>
-            <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/CoachCam-v1.6.0.html</sparkle:releaseNotesLink>
-            <enclosure url="https://github.com/spectrevisuals/CoachCam/releases/download/v1.6.0/CoachCam-v1.6.0.dmg" length="4296045" type="application/octet-stream" sparkle:edSignature="0fq2AeS+lN8xchXi19rAA6LSl960OScTa4UwSGzTdIAVu/BSZfitK5+gTOW4ISmT8goxi6HH8F68t1IPy7sIBA=="/>
         </item>
     </channel>
 </rss>

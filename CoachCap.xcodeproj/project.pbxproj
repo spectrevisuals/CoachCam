@@ -16,6 +16,7 @@
 		2C9488B383110E3263C61466 /* RecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75A1F318DEE96B9FDE2E6A6 /* RecordingSession.swift */; };
 		2CF12ADC89D29769D217CA35 /* WhatsAppMediaBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E72A025990F2AE436EFFF8 /* WhatsAppMediaBrowser.swift */; };
 		31EB1C41B05D73AA00627EAF /* License.swift in Sources */ = {isa = PBXBuildFile; fileRef = 771B2E7E8F564068586EE10C /* License.swift */; };
+		3631FB764A96FDB8E1AB8855 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9949FD2C41F8BB91C270B93D /* Brand.swift */; };
 		36566D057C8C005500D23423 /* PhotoToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */; };
 		40A0229451EAB5D97F3C7163 /* DateCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */; };
 		4EC2B677B89F0FE9962102F8 /* PhotoStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */; };
@@ -24,6 +25,7 @@
 		6A826E390AFCA7BC1120E8AC /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A6F6E3C39AE945A15094D144 /* Sparkle */; };
 		6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5047323346857C0344F8B834 /* ContentView.swift */; };
 		74C629C9E54499D2DE4B6167 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */; };
+		77CB74C3DB382FCD045F0FA3 /* Quicksand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4AF37094750898D0CD8C49BC /* Quicksand.ttf */; };
 		9AF0544A8ABA5DF7BC29EA5C /* LemonSqueezyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */; };
 		A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */; };
 		B5E0A426F6631A0049F33CDE /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1FA0EE5C1EA9FD2DBD3B7F9 /* CheckForUpdatesView.swift */; };
@@ -43,6 +45,7 @@
 		39A6488731B2659C66640220 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
 		406844247D2A2F801DD13664 /* LicenseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseView.swift; sourceTree = "<group>"; };
 		4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStitcher.swift; sourceTree = "<group>"; };
+		4AF37094750898D0CD8C49BC /* Quicksand.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Quicksand.ttf; sourceTree = "<group>"; };
 		5047323346857C0344F8B834 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		50EDFCBA28C1F4EB10570E46 /* CoachCapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCapApp.swift; sourceTree = "<group>"; };
 		5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCameraPanel.swift; sourceTree = "<group>"; };
@@ -55,6 +58,7 @@
 		87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LemonSqueezyClient.swift; sourceTree = "<group>"; };
 		8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCompareView.swift; sourceTree = "<group>"; };
 		92B8AD1DB8CBB1DF2EFE5BF2 /* CoachCap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoachCap.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9949FD2C41F8BB91C270B93D /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
 		A75A1F318DEE96B9FDE2E6A6 /* RecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSession.swift; sourceTree = "<group>"; };
 		B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMatchEngine.swift; sourceTree = "<group>"; };
 		CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoToolView.swift; sourceTree = "<group>"; };
@@ -101,6 +105,7 @@
 		3C0994710FD253A8824F9363 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				9949FD2C41F8BB91C270B93D /* Brand.swift */,
 				E1FA0EE5C1EA9FD2DBD3B7F9 /* CheckForUpdatesView.swift */,
 				5047323346857C0344F8B834 /* ContentView.swift */,
 				5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */,
@@ -138,6 +143,7 @@
 			isa = PBXGroup;
 			children = (
 				6C1812E25DD3AC5F207D6839 /* CoachCap */,
+				A2B538553CBD5365E896103F /* Resources */,
 				B656273C417E9F0C009F4D18 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -153,6 +159,14 @@
 				3722468CB77EB086D2FB7748 /* RecordingConfig.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		A2B538553CBD5365E896103F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4AF37094750898D0CD8C49BC /* Quicksand.ttf */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		B656273C417E9F0C009F4D18 /* Products */ = {
@@ -188,6 +202,7 @@
 			buildConfigurationList = C86390543CE2B4975EDA09C2 /* Build configuration list for PBXNativeTarget "CoachCap" */;
 			buildPhases = (
 				73760D978001B394C7F3E5D9 /* Sources */,
+				E734EAA7E31E71502E016C9E /* Resources */,
 				7A9F74864071535535630894 /* Frameworks */,
 			);
 			buildRules = (
@@ -239,6 +254,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		E734EAA7E31E71502E016C9E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				77CB74C3DB382FCD045F0FA3 /* Quicksand.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		73760D978001B394C7F3E5D9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -247,6 +273,7 @@
 				5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */,
 				1D2658976C140792B9B45B8E /* AnnotationView.swift in Sources */,
 				F36BEDE81E80A3A2345C0BF7 /* AppState.swift in Sources */,
+				3631FB764A96FDB8E1AB8855 /* Brand.swift in Sources */,
 				D54D3A156A7B67C3BE3C97D2 /* CameraManager.swift in Sources */,
 				2A63A2E79300213455F91902 /* CameraPreviewLayer.swift in Sources */,
 				A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */,

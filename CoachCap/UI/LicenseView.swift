@@ -5,68 +5,63 @@ struct LicenseView: View {
     @State private var keyInput = ""
 
     var body: some View {
-        VStack(spacing: 12) {
-            if licenseManager.isUnlocked {
-                activeBox
-            } else {
-                trialBox
-            }
+        if licenseManager.isUnlocked {
+            activeBar
+        } else {
+            trialBox
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
     }
 
-    // MARK: Active
+    // MARK: Active — subtle thin indicator
 
-    private var activeBox: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text(licenseManager.onGrace ? "License Active (offline)" : "License Active")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button {
-                    Task { await licenseManager.deactivateDevice() }
-                } label: {
-                    if licenseManager.isWorking {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Deactivate this device")
-                    }
-                }
-                .font(.caption)
-                .disabled(licenseManager.isWorking)
-                .help("Free this Mac's activation so the key can be used on another Mac.")
-            }
-            if licenseManager.onGrace {
-                Text("Running offline. Connect to the internet occasionally to keep your license verified.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    private var activeBar: some View {
+        HStack(spacing: 8) {
+            Circle().fill(Color(hex: 0x28C840)).frame(width: 7, height: 7)
+            Text(licenseManager.onGrace ? "licensed · offline" : "licensed")
+                .font(Brand.font(12))
+                .foregroundStyle(Brand.muted)
+            Spacer()
             if !licenseManager.statusMessage.isEmpty {
-                Text(licenseManager.statusMessage)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(licenseManager.statusMessage.lowercased())
+                    .font(Brand.font(11))
+                    .foregroundStyle(Brand.muted)
+                    .lineLimit(1)
             }
+            Button {
+                Task { await licenseManager.deactivateDevice() }
+            } label: {
+                if licenseManager.isWorking {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text("deactivate this device")
+                        .font(Brand.font(11))
+                        .foregroundStyle(Brand.muted)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(licenseManager.isWorking)
+            .help("Free this Mac's activation so the key can be used on another Mac.")
         }
-        .padding(8)
-        .background(Color.green.opacity(0.1))
-        .cornerRadius(6)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 9)
+        .background(Brand.bg)
     }
 
     // MARK: Trial / activation
 
     private var trialBox: some View {
         VStack(spacing: 8) {
-            Text("Free Trial: 120 seconds per recording")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            HStack {
-                TextField("License key", text: $keyInput)
-                    .textFieldStyle(.roundedBorder)
+            Text("free trial: 120 seconds per recording")
+                .font(Brand.font(12))
+                .foregroundStyle(Brand.muted)
+            HStack(spacing: 10) {
+                TextField("license key", text: $keyInput)
+                    .textFieldStyle(.plain)
+                    .font(Brand.font(13))
+                    .foregroundStyle(Brand.text)
+                    .brandPill()
                     .disabled(licenseManager.isWorking)
                     .onSubmit(activate)
                 Button {
@@ -75,22 +70,20 @@ struct LicenseView: View {
                     if licenseManager.isWorking {
                         ProgressView().controlSize(.small)
                     } else {
-                        Text("Activate")
+                        Text("activate")
                     }
                 }
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(keyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                           || licenseManager.isWorking)
             }
             if !licenseManager.statusMessage.isEmpty {
                 Text(licenseManager.statusMessage)
-                    .font(.caption)
-                    .foregroundColor(.red)
+                    .font(Brand.font(12))
+                    .foregroundStyle(Brand.danger)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(8)
-        .background(Color.orange.opacity(0.1))
-        .cornerRadius(6)
     }
 
     private func activate() {

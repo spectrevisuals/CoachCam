@@ -31,7 +31,6 @@ struct PhotoToolView: View {
     var body: some View {
         VStack(spacing: 0) {
             navBar
-            Divider()
             if viewMode == .dateCompare {
                 DateCompareView { before, after in
                     pairs.append(ImagePair(before: before, after: after))
@@ -41,15 +40,13 @@ struct PhotoToolView: View {
                 BrowseView()
             } else {
                 viewer
-                Divider()
                 thumbnailStrip
-                Divider()
                 whatsAppSection
-                Divider()
                 controlsBar
             }
         }
-        .frame(minWidth: 800, minHeight: 520)
+        .frame(minWidth: 900, minHeight: 560)
+        .background(Brand.bg)
         .sheet(isPresented: $showAnnotation) {
             if let img = annotationImage {
                 AnnotationView(
@@ -72,16 +69,17 @@ struct PhotoToolView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "message.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(Color(hex: 0x28C840))
                         .font(.system(size: 11))
-                    Text("From WhatsApp")
-                        .font(.subheadline.weight(.medium))
-                    Text("· hover a photo, tap LW or TW to assign")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Text("from whatsapp")
+                        .font(Brand.font(13, .semibold))
+                        .foregroundStyle(Brand.text)
+                    Text("· hover a photo, tap lw or tw to assign")
+                        .font(Brand.font(12))
+                        .foregroundStyle(Brand.muted)
                     Spacer()
                     Image(systemName: showWhatsApp ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(Brand.muted)
                         .font(.caption)
                 }
                 .padding(.horizontal, 16)
@@ -91,7 +89,7 @@ struct PhotoToolView: View {
             .buttonStyle(.plain)
 
             if showWhatsApp {
-                Divider()
+                Divider().overlay(Brand.border)
                 WhatsAppMediaBrowser { image, slot in
                     switch slot {
                     case .lastWeek: pairs[current].before = image
@@ -100,7 +98,7 @@ struct PhotoToolView: View {
                 }
             }
         }
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Brand.bgElev)
     }
 
     // MARK: Nav bar
@@ -113,8 +111,9 @@ struct PhotoToolView: View {
             .disabled(current == 0)
             .buttonStyle(.borderless)
 
-            Text("Pose \(current + 1) of \(pairs.count)")
-                .font(.subheadline.weight(.medium))
+            Text("pose \(current + 1) of \(pairs.count)")
+                .font(Brand.font(13, .semibold))
+                .foregroundStyle(Brand.text)
                 .frame(minWidth: 90)
 
             Button(action: next) {
@@ -123,43 +122,43 @@ struct PhotoToolView: View {
             .disabled(current == pairs.count - 1)
             .buttonStyle(.borderless)
 
-            TextField("Label (e.g. Front, Side, Rear)", text: labelBinding)
-                .textFieldStyle(.roundedBorder)
+            TextField("label (e.g. front, side, rear)", text: labelBinding)
+                .textFieldStyle(.plain)
+                .font(Brand.font(13))
+                .foregroundStyle(Brand.text)
                 .frame(maxWidth: 220)
+                .brandPill(height: 34)
 
             Spacer()
 
-            Divider().frame(height: 20)
+            // Mode toggle — shared segmented control
+            BrandSegmented(selection: $viewMode, options: [
+                ("manual",  ViewMode.manual),
+                ("compare", ViewMode.dateCompare),
+                ("browse",  ViewMode.browse)
+            ], compact: true)
+            .frame(width: 240)
 
-            // Mode toggle
-            Picker("Mode", selection: $viewMode) {
-                Text("Manual").tag(ViewMode.manual)
-                Text("Compare").tag(ViewMode.dateCompare)
-                Text("Browse").tag(ViewMode.browse)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 220)
-            .labelsHidden()
-
-            Divider().frame(height: 20)
-
-            Button("+ Add Pose") {
+            Button("+ add pose") {
                 pairs.append(ImagePair())
                 current = pairs.count - 1
             }
+            .buttonStyle(PrimaryButtonStyle())
             .opacity(viewMode == .dateCompare ? 0 : 1)
             .disabled(viewMode == .dateCompare)
 
             if pairs.count > 1 {
-                Button("Remove") {
+                Button("remove") {
                     pairs.remove(at: current)
                     current = min(current, pairs.count - 1)
                 }
-                .foregroundColor(.red)
+                .foregroundStyle(Brand.danger)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
+        .background(Brand.bgElev)
+        .overlay(Rectangle().fill(Brand.border).frame(height: 1), alignment: .bottom)
     }
 
     // MARK: Main viewer (before | after, full height, zoomable)
@@ -184,10 +183,12 @@ struct PhotoToolView: View {
             // Before panel
             ZStack(alignment: .top) {
                 PhotoPanel(image: $pairs[current].before)
-                Text("LAST WEEK")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.75))
-                    .padding(.top, 8)
+                Text("last week")
+                    .font(Brand.font(12, .semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Capsule().fill(Color.black.opacity(0.45)))
+                    .padding(.top, 10)
             }
 
             // Divider
@@ -198,10 +199,12 @@ struct PhotoToolView: View {
             // After panel
             ZStack(alignment: .top) {
                 PhotoPanel(image: $pairs[current].after)
-                Text("THIS WEEK")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.75))
-                    .padding(.top, 8)
+                Text("this week")
+                    .font(Brand.font(12, .semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Capsule().fill(Color.black.opacity(0.45)))
+                    .padding(.top, 10)
             }
 
             Spacer(minLength: 0)
@@ -220,7 +223,7 @@ struct PhotoToolView: View {
             .opacity(current < pairs.count - 1 ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        .background(Brand.bg)
     }
 
     // MARK: Thumbnail strip
@@ -237,19 +240,23 @@ struct PhotoToolView: View {
             .padding(.vertical, 8)
         }
         .frame(height: 72)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Brand.bgElev)
     }
 
     // MARK: Controls bar
 
     private var controlsBar: some View {
         HStack(spacing: 14) {
-            TextField("Client name (optional)", text: $exportClientName)
-                .textFieldStyle(.roundedBorder)
+            TextField("client name (optional)", text: $exportClientName)
+                .textFieldStyle(.plain)
+                .font(Brand.font(13))
+                .foregroundStyle(Brand.text)
                 .frame(width: 200)
+                .brandPill(height: 34)
 
-            Toggle("Column headers in export", isOn: $showHeaders)
+            Toggle("column headers in export", isOn: $showHeaders)
                 .toggleStyle(.checkbox)
+                .font(Brand.font(12))
 
             Spacer()
 
@@ -257,27 +264,29 @@ struct PhotoToolView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                     Text(url.lastPathComponent).font(.caption).lineLimit(1)
-                    Button("Reveal") { ExportManager.revealInFinder(url) }
-                        .buttonStyle(.link).font(.caption)
-                    Button("Copy") { copyToClipboard() }
-                        .buttonStyle(.link).font(.caption)
+                    Button("reveal") { ExportManager.revealInFinder(url) }
+                        .buttonStyle(LinkButtonStyle())
+                    Button("copy") { copyToClipboard() }
+                        .buttonStyle(LinkButtonStyle())
                     if annotationImage != nil {
-                        Button("Annotate") { showAnnotation = true }
-                            .buttonStyle(.link).font(.caption)
+                        Button("annotate") { showAnnotation = true }
+                            .buttonStyle(LinkButtonStyle())
                     }
                 }
             }
 
             if let err = errorMsg {
-                Text(err).foregroundColor(.red).font(.caption)
+                Text(err).foregroundStyle(Brand.danger).font(Brand.font(12))
             }
 
-            Button(isSaving ? "Saving…" : "Save JPEG") { save() }
-                .buttonStyle(ExportButtonStyle())
+            Button(isSaving ? "saving…" : "save jpeg") { save() }
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(!hasImages || isSaving)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .overlay(Rectangle().fill(Brand.border).frame(height: 1), alignment: .top)
     }
 
     // MARK: Helpers
@@ -350,7 +359,7 @@ private struct PhotoPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        .background(Brand.bg)
         .overlay(
             RoundedRectangle(cornerRadius: 0)
                 .stroke(isTargeted ? Color.accentColor : Color.clear, lineWidth: 3)
@@ -362,20 +371,24 @@ private struct PhotoPanel: View {
     }
 
     private var dropPlaceholder: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "photo")
-                .font(.system(size: 36))
-                .foregroundColor(.white.opacity(0.3))
-            Text("Drop from WhatsApp\nor click to browse")
-                .font(.caption)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.white.opacity(0.4))
-            Button("Paste") { pasteFromClipboard() }
-                .font(.caption)
-                .buttonStyle(.link)
-                .foregroundColor(.white.opacity(0.5))
+        ZStack {
+            VStack(spacing: 16) {
+                BrandEmptyState(icon: "photo.badge.arrow.down",
+                                title: "drop from whatsapp",
+                                subtitle: "or click to browse")
+                Button("paste") { pasteFromClipboard() }
+                    .buttonStyle(LinkButtonStyle())
+            }
+            .padding(30)
+            .frame(maxWidth: 300)
+            .background(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous)
+                .fill(Color.white.opacity(0.02)))
+            .overlay(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                .foregroundStyle(isTargeted ? Brand.accent : Brand.controlBorder))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(28)
         .contentShape(Rectangle())
         .onTapGesture { browse() }
     }
@@ -475,7 +488,7 @@ private struct PoseThumbnail: View {
             .frame(width: 80, height: 48)
             .clipShape(RoundedRectangle(cornerRadius: 4))
             .overlay(RoundedRectangle(cornerRadius: 4)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2))
+                .stroke(isSelected ? Brand.accent : Color.clear, lineWidth: 2))
 
             if !pair.label.isEmpty {
                 Text(pair.label)
@@ -498,15 +511,3 @@ private struct PoseThumbnail: View {
     }
 }
 
-// MARK: - Button Style
-
-private struct ExportButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(.white)
-            .padding(.horizontal, 18).padding(.vertical, 8)
-            .background(Color.accentColor.opacity(configuration.isPressed ? 0.7 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: 7))
-    }
-}
