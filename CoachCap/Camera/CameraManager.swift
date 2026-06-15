@@ -77,27 +77,19 @@ final class CameraManager: NSObject, ObservableObject {
     }
 
     func enumerateDevices() {
-        // Try multiple device type combinations to catch all cameras
-        var cameras: [AVCaptureDevice] = []
+        // Enumerate ALL camera types in one pass — previously this used a fallback chain
+        // that stopped at the built-in camera, which hid connected external webcams.
+        var cameraTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .external]
+        cameraTypes.append(.continuityCamera)   // iPhone / Continuity Camera
+        cameraTypes.append(.deskViewCamera)
 
-        // Attempt 1: Built-in wide angle, front position
-        cameras = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera], mediaType: .video, position: .front
+        var cameras = AVCaptureDevice.DiscoverySession(
+            deviceTypes: cameraTypes, mediaType: .video, position: .unspecified
         ).devices
-        NSLog("DEBUG CameraManager: Front built-in: \(cameras.count)")
-
+        // Belt-and-braces: if the discovery session somehow returns nothing, fall back to
+        // the broad query so we never end up with an empty list when a camera exists.
         if cameras.isEmpty {
-            // Attempt 2: Any video device, unspecified position
-            cameras = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.builtInWideAngleCamera, .external], mediaType: .video, position: .unspecified
-            ).devices
-            NSLog("DEBUG CameraManager: Unspecified position: \(cameras.count)")
-        }
-
-        if cameras.isEmpty {
-            // Attempt 3: All video devices (macOS 14+)
             cameras = AVCaptureDevice.devices(for: .video)
-            NSLog("DEBUG CameraManager: All video devices: \(cameras.count)")
         }
 
         availableCameras = cameras
