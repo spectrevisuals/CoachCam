@@ -30,6 +30,12 @@ final class AppState: ObservableObject {
     @Published var customAreaDisplayID: CGDirectDisplayID? = nil
     @Published var customAreaPixelSize: CGSize? = nil
 
+    // Auto-hide: minimise the main window while recording. Lives here (not @AppStorage in
+    // the view) so the float cam's captured closures always read the live value. Persisted.
+    @Published var hideWindowWhileRecording: Bool = UserDefaults.standard.bool(forKey: "hideWindowWhileRecording") {
+        didSet { UserDefaults.standard.set(hideWindowWhileRecording, forKey: "hideWindowWhileRecording") }
+    }
+
     // Float cam circle diameter (points). Cycled S/M/L from the float cam; remembered.
     @Published var floatCamDiameter: CGFloat = {
         let v = UserDefaults.standard.double(forKey: "floatCamDiameter")

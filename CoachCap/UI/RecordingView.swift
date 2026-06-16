@@ -17,9 +17,6 @@ struct RecordingView: View {
     @State private var freeGBText = ""
     @State private var showQuotaAlert = false
 
-    /// When on, the main window hides the moment recording begins so the coach can talk
-    /// over another app (e.g. Google Sheets or Photos). Persisted across launches.
-    @AppStorage("hideWindowWhileRecording") private var hideWindowWhileRecording = false
     /// The window we hid for the current recording, so we can bring it back on stop.
     @State private var recordingWindow: NSWindow? = nil
     /// Retains the custom-area selector overlay while the coach is drawing the box.
@@ -451,8 +448,8 @@ struct RecordingView: View {
                 camera.mirrorEnabled.toggle()
                 session.updateMirror(camera.mirrorEnabled)
             }
-            segItem("auto-hide", active: hideWindowWhileRecording, icon: "macwindow") {
-                if !session.isRunning { hideWindowWhileRecording.toggle() }
+            segItem("auto-hide", active: appState.hideWindowWhileRecording, icon: "macwindow") {
+                if !session.isRunning { appState.hideWindowWhileRecording.toggle() }
             }
             .help("Hide the CoachCam window when recording starts — handy for talking over Google Sheets or Photos. Pair it with float cam so you can still stop.")
         }
@@ -612,7 +609,7 @@ struct RecordingView: View {
     /// (and the live recording) alive, and leaves a Dock thumbnail to click back to.
     /// Skipped in webcam-only mode, where the window itself is what's being recorded.
     private func hideMainWindowForRecording() {
-        guard hideWindowWhileRecording, !appState.webcamOnlyMode else { return }
+        guard appState.hideWindowWhileRecording, !appState.webcamOnlyMode else { return }
         if let win = mainWindow() {
             recordingWindow = win
             win.miniaturize(nil)
