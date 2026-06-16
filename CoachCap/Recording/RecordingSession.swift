@@ -189,6 +189,16 @@ final class RecordingSession: NSObject, ObservableObject {
             throw error
         }
 
+        // Make sure microphone access has actually been requested. Without this the app
+        // is never added to the Privacy → Microphone list, the capture session yields no
+        // samples, and the voice track is silent/missing. Prompt on first use; wait so the
+        // grant is in place before the mic session starts.
+        // Prompt for microphone on first use so the voice track is actually captured.
+        // (Requires the `com.apple.security.device.audio-input` hardened-runtime entitlement —
+        // without it macOS blocks the mic before the prompt ever shows.)
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            _ = await AVCaptureDevice.requestAccess(for: .audio)
+        }
         setupMicCapture(deviceID: config.selectedMicID)
 
         NSLog("DEBUG: Starting AVAssetWriter...")

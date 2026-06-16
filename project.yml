@@ -43,8 +43,8 @@ targets:
     info:
       path: CoachCap/Info.plist
       properties:
-        CFBundleShortVersionString: "1.7.2"
-        CFBundleVersion: "25"
+        CFBundleShortVersionString: "1.7.3"
+        CFBundleVersion: "26"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "CoachCap uses your camera to record a face-cam overlay on your screen recordings."
         NSMicrophoneUsageDescription: "CoachCap uses your microphone to record audio commentary with your screen recordings."
@@ -53,6 +53,13 @@ targets:
         SUEnableAutomaticChecks: true
     entitlements:
       path: CoachCap/CoachCap-Release.entitlements
+      properties:
+        # Hardened Runtime device-access keys. NOTE: the mic key for hardened runtime is
+        # `audio-input`, NOT `microphone` (that one is App Sandbox only). Shipping only
+        # `microphone` silently blocked the mic prompt while camera worked. Keep all three.
+        com.apple.security.device.camera: true
+        com.apple.security.device.audio-input: true
+        com.apple.security.device.microphone: true
     configurations:
       Debug:
         settings:

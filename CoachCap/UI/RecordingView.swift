@@ -49,7 +49,6 @@ struct RecordingView: View {
             controlBar
         }
         .onAppear {
-            NSLog("DEBUG RecordingView: camera ID = \(ObjectIdentifier(camera))")
             Task { await session.checkPermission() }
             camera.startCapture(cameraID: appState.selectedCameraID)
             if appState.selectedDisplayID == nil {
