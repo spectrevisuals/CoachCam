@@ -123,22 +123,15 @@ struct PhotoToolView: View {
             .disabled(current == pairs.count - 1)
             .buttonStyle(.borderless)
 
-            TextField("label (e.g. front, side, rear)", text: labelBinding)
-                .textFieldStyle(.plain)
-                .font(Brand.font(13))
-                .foregroundStyle(Brand.text)
-                .frame(maxWidth: 220)
-                .brandPill(height: 34)
-
             Spacer()
 
             // Mode toggle — shared segmented control
             BrandSegmented(selection: $viewMode, options: [
-                ("manual",  ViewMode.manual),
-                ("compare", ViewMode.dateCompare),
-                ("browse",  ViewMode.browse)
-            ], compact: true)
-            .frame(width: 240)
+                ("paste",       ViewMode.manual),
+                ("by date",     ViewMode.dateCompare),
+                ("smart match", ViewMode.browse)
+            ], compact: true, recommended: ViewMode.browse)
+            .frame(width: 320)
 
             Button("+ add pose") {
                 pairs.append(ImagePair())
@@ -293,11 +286,6 @@ struct PhotoToolView: View {
     // MARK: Helpers
 
     private var hasImages: Bool { pairs.contains { $0.before != nil || $0.after != nil } }
-
-    private var labelBinding: Binding<String> {
-        Binding(get: { pairs[current].label },
-                set: { pairs[current].label = $0 })
-    }
 
     private func prev() { if current > 0 { current -= 1 } }
     private func next() { if current < pairs.count - 1 { current += 1 } }

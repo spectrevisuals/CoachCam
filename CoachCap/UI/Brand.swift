@@ -169,33 +169,43 @@ struct BrandEmptyState: View {
 // MARK: - Shared segmented control (one component for ALL segmented controls)
 
 /// A brand segmented control. Active segment = orange fill with a subtle inner highlight.
+/// An optional `recommended` value is highlighted (orange tint + ✨) even when unselected,
+/// to steer users toward the best option.
 struct BrandSegmented<T: Hashable>: View {
     @Binding var selection: T
     let options: [(label: String, value: T)]
     var compact: Bool = false
+    var recommended: T? = nil
 
     var body: some View {
         HStack(spacing: 3) {
             ForEach(options, id: \.value) { opt in
                 let active = selection == opt.value
+                let isRec = recommended == opt.value
                 Button {
                     selection = opt.value
                 } label: {
-                    Text(opt.label)
-                        .font(Brand.font(compact ? 12 : 13, active ? .semibold : .medium))
+                    HStack(spacing: 4) {
+                        if isRec {
+                            Image(systemName: "sparkles").font(.system(size: compact ? 10 : 11))
+                        }
+                        Text(opt.label)
+                    }
+                        .font(Brand.font(compact ? 12 : 13, (active || isRec) ? .semibold : .medium))
                         .textCase(.lowercase)
-                        .foregroundStyle(active ? Color.white : Brand.muted)
+                        .foregroundStyle(active ? Color.white : (isRec ? Brand.accent : Brand.muted))
                         .padding(.horizontal, compact ? 11 : 14)
                         .padding(.vertical, compact ? 6 : 7)
                         .frame(maxWidth: .infinity)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(active ? Brand.accent : Color.clear)
-                                // subtle inner highlight on the active segment
-                                .overlay(active
-                                    ? RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(Color.white.opacity(0.18), lineWidth: 0.5)
-                                    : nil)
+                                .fill(active ? Brand.accent : (isRec ? Brand.accentSoft : Color.clear))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(active ? Color.white.opacity(0.18)
+                                                       : (isRec ? Brand.accentBorder : Color.clear),
+                                                lineWidth: active ? 0.5 : 1)
+                                )
                         )
                 }
                 .buttonStyle(.plain)
