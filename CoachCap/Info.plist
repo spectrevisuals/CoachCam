@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.7.0</string>
+	<string>1.7.1</string>
 	<key>CFBundleVersion</key>
-	<string>23</string>
+	<string>24</string>
 	<key>NSCameraUsageDescription</key>
 	<string>CoachCap uses your camera to record a face-cam overlay on your screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>

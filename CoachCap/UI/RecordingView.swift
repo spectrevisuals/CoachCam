@@ -586,6 +586,9 @@ struct RecordingView: View {
         appState.isSaving = true
         appState.stopTimer()
         appState.isRecording = false
+        // Always bring the window back on stop, in every mode (also handled by the
+        // isRunning observer, but do it here too so it's immediate and guaranteed).
+        restoreMainWindow()
         Task {
             // session.stop() awaits finishWriting, so `url` points to a fully-written file.
             let url = await session.stop()
@@ -603,13 +606,16 @@ struct RecordingView: View {
         NSApp.windows.first { $0.styleMask.contains(.titled) && !($0 is FloatingCameraPanel) }
     }
 
-    /// Hide the main window as recording starts (when the toggle is on). Skipped in
-    /// webcam-only mode, where the window itself is the thing being recorded.
+    /// Get the main window out of the way as recording starts (when the toggle is on).
+    /// We *minimise* rather than orderOut: hiding the window can make SwiftUI tear down
+    /// this view and kill the recording session mid-capture. Minimising keeps the window
+    /// (and the live recording) alive, and leaves a Dock thumbnail to click back to.
+    /// Skipped in webcam-only mode, where the window itself is what's being recorded.
     private func hideMainWindowForRecording() {
         guard hideWindowWhileRecording, !appState.webcamOnlyMode else { return }
         if let win = mainWindow() {
             recordingWindow = win
-            win.orderOut(nil)
+            win.miniaturize(nil)
         }
     }
 
@@ -619,6 +625,8 @@ struct RecordingView: View {
         let win = recordingWindow ?? mainWindow()
         recordingWindow = nil
         guard let win else { return }
+        if win.isMiniaturized { win.deminiaturize(nil) }
+        win.setIsVisible(true)
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
