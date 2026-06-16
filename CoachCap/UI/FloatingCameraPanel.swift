@@ -1,14 +1,19 @@
 import AppKit
 import SwiftUI
+import Combine
 
 final class FloatingCameraPanel: NSPanel {
+
+    private var sizeCancellable: AnyCancellable?
+    private let controlsHeight: CGFloat = 58
 
     init(camera: CameraManager,
          appState: AppState,
          onStart: @escaping () -> Void,
          onPauseResume: @escaping () -> Void,
          onStop: @escaping () -> Void,
-         onCancelCountdown: @escaping () -> Void) {
+         onCancelCountdown: @escaping () -> Void,
+         onCustomArea: @escaping () -> Void) {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 160, height: 218),
@@ -31,15 +36,39 @@ final class FloatingCameraPanel: NSPanel {
             ))
         }
 
-        contentView = NSHostingView(rootView: FloatingCameraView(
+        let host = NSHostingView(rootView: FloatingCameraView(
             camera: camera,
             appState: appState,
             onStart: onStart,
             onPauseResume: onPauseResume,
             onStop: onStop,
             onCancelCountdown: onCancelCountdown,
+            onCustomArea: onCustomArea,
             onClose: { [weak self] in self?.close() }
         ))
+        host.autoresizingMask = [.width, .height]
+        contentView = host
+
+        // Resize the panel (anchored to its bottom-right corner) whenever the coach
+        // cycles the float cam size.
+        sizeCancellable = appState.$floatCamDiameter.sink { [weak self] d in self?.applySize(d) }
+    }
+
+    private func applySize(_ d: CGFloat) {
+        let newSize = NSSize(width: d, height: d + controlsHeight)
+        guard abs(frame.width - newSize.width) > 0.5 || abs(frame.height - newSize.height) > 0.5 else { return }
+        var f = frame
+        // Grow from the bottom-right corner (kept pinned), so a bottom-right-docked cam
+        // expands up-and-left and stays put on screen. The grip lives at the top-left.
+        let right = f.maxX, bottom = f.minY
+        f.size = newSize
+        f.origin = NSPoint(x: right - newSize.width, y: bottom)
+        // Keep the whole panel on screen so the controls never slide off the edge.
+        if let vf = (screen ?? NSScreen.main)?.visibleFrame {
+            f.origin.x = min(max(f.origin.x, vf.minX), max(vf.minX, vf.maxX - newSize.width))
+            f.origin.y = min(max(f.origin.y, vf.minY), max(vf.minY, vf.maxY - newSize.height))
+        }
+        setFrame(f, display: true, animate: false)
     }
 }
 
@@ -50,7 +79,13 @@ private struct FloatingCameraView: View {
     let onPauseResume: () -> Void
     let onStop: () -> Void
     let onCancelCountdown: () -> Void
+    let onCustomArea: () -> Void
     let onClose: () -> Void
+
+    private var d: CGFloat { appState.floatCamDiameter }
+    private let controlsHeight: CGFloat = 58
+    private let minDiameter: CGFloat = 90
+    private let maxDiameter: CGFloat = 380
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,7 +95,8 @@ private struct FloatingCameraView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 4)
         }
-        .frame(width: 160, height: 218)
+        .frame(width: d, height: d + controlsHeight)
+        .overlay(alignment: .topLeading) { resizeGrip }
         .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
         .animation(.easeOut(duration: 0.2), value: appState.countdownValue)
         .animation(.easeOut(duration: 0.2), value: appState.isRecording)
@@ -85,7 +121,7 @@ private struct FloatingCameraView: View {
                         )
                 }
             }
-            .frame(width: 160, height: 160)
+            .frame(width: d, height: d)
             .clipShape(Circle())
             .shadow(radius: 8)
 
@@ -102,7 +138,7 @@ private struct FloatingCameraView: View {
                             removal:   .scale(scale: 1.5).combined(with: .opacity)
                         ))
                 }
-                .frame(width: 160, height: 160)
+                .frame(width: d, height: d)
                 .clipShape(Circle())
             }
 
@@ -124,7 +160,7 @@ private struct FloatingCameraView: View {
                     .clipShape(Capsule())
                     .padding(.bottom, 8)
                 }
-                .frame(width: 160, height: 160)
+                .frame(width: d, height: d)
             }
 
             // Close button (top-right, always visible)
@@ -138,8 +174,9 @@ private struct FloatingCameraView: View {
                 .buttonStyle(.plain)
                 .padding(4)
             }
+
         }
-        .frame(width: 160, height: 160)
+        .frame(width: d, height: d)
     }
 
     // MARK: Controls
@@ -169,20 +206,95 @@ private struct FloatingCameraView: View {
             }
 
         } else {
-            Button(action: onStart) {
-                HStack(spacing: 6) {
-                    Circle().fill(.red).frame(width: 8, height: 8)
-                    Text("Record").font(.system(size: 13, weight: .semibold))
+            HStack(spacing: 6) {
+                Button(action: onStart) {
+                    HStack(spacing: 6) {
+                        Circle().fill(.red).frame(width: 8, height: 8)
+                        Text("Record").font(.system(size: 13, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .frame(maxWidth: .infinity, minHeight: 34)
+                .buttonStyle(FloatButtonStyle(color: Color(white: 0.15)))
+
+                Button(action: onCustomArea) {
+                    Image(systemName: appState.customArea == nil ? "rectangle.dashed" : "rectangle.dashed.badge.record")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(appState.customArea == nil ? .white : Brand.accent)
+                        .frame(width: 38, height: 34)
+                }
+                .buttonStyle(FloatButtonStyle(color: Color(white: 0.25)))
+                .help("Record only a custom area — tap to draw a box, tap again to clear")
             }
-            .buttonStyle(FloatButtonStyle(color: Color(white: 0.15)))
         }
+    }
+
+    // Drag the bottom-right grip to resize the float cam to any size. The grip is an
+    // AppKit view that declares mouseDownCanMoveWindow = false, so dragging it resizes
+    // instead of moving the window (the rest of the bubble still drags to reposition).
+    private var resizeGrip: some View {
+        ZStack {
+            Image(systemName: "arrow.up.left")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.white.opacity(0.8))
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.black.opacity(0.5)))
+            ResizeGrip(diameter: { appState.floatCamDiameter },
+                       minD: minDiameter, maxD: maxDiameter,
+                       onChange: { appState.floatCamDiameter = $0 })
+                .frame(width: 30, height: 30)
+        }
+        .padding(5)
+        .help("Drag to resize the float cam")
     }
 
     private var timerString: String {
         let d = Int(appState.recordingDuration)
         return String(format: "%02d:%02d", d / 60, d % 60)
+    }
+}
+
+/// AppKit-backed resize handle. Because it returns `mouseDownCanMoveWindow = false`,
+/// dragging it resizes the float cam instead of the window's background-drag moving it.
+private struct ResizeGrip: NSViewRepresentable {
+    let diameter: () -> CGFloat
+    let minD: CGFloat
+    let maxD: CGFloat
+    let onChange: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> ResizeGripView {
+        let v = ResizeGripView()
+        v.minD = minD; v.maxD = maxD
+        v.diameter = diameter; v.onChange = onChange
+        return v
+    }
+    func updateNSView(_ v: ResizeGripView, context: Context) {
+        v.diameter = diameter; v.onChange = onChange
+    }
+}
+
+final class ResizeGripView: NSView {
+    var diameter: () -> CGFloat = { 160 }
+    var onChange: (CGFloat) -> Void = { _ in }
+    var minD: CGFloat = 90
+    var maxD: CGFloat = 380
+
+    private var startD: CGFloat = 0
+    private var startMouse: NSPoint = .zero
+
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
+
+    override func mouseDown(with event: NSEvent) {
+        startD = diameter()
+        startMouse = NSEvent.mouseLocation
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let cur = NSEvent.mouseLocation
+        let dxLeft = startMouse.x - cur.x      // drag left  = larger
+        let dyUp   = cur.y - startMouse.y      // drag up    = larger
+        let delta = (dxLeft + dyUp) / 2
+        onChange(min(maxD, max(minD, startD + delta)))
     }
 }
 

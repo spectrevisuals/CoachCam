@@ -9,6 +9,7 @@ struct RecordingConfig {
     var pipNormalizedRect: CGRect
     var selectedMicID: String?
     var displayID: CGDirectDisplayID?   // which monitor to capture; nil = primary
+    var sourceRect: CGRect? = nil       // custom-area crop (display points, top-left origin); nil = whole display
 
     // Auto-selects bitrate so 2-5 min clips fit in WhatsApp's ~16 MB limit.
     static func videoBitrate(for size: CGSize) -> Int {
@@ -21,15 +22,28 @@ struct RecordingConfig {
 
     static let audioBitrate = 128_000   // 128 kbps AAC
 
-    // Generates ~/Movies/CoachCap/ClientName_YYYY-MM-DD[_n].mp4
+    // Generates ~/Movies/CoachCap/WC YYYY-MM-DD/ClientName_YYYY-MM-DD[_n].mp4
+    // Recordings are grouped into a weekly "WC (week commencing) <Monday>" folder.
     static func autoOutputURL(clientName: String) -> URL {
         let movies = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first!
-        let dir = movies.appendingPathComponent("CoachCap", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let now = Date()
 
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
-        let dateStr = df.string(from: Date())
+
+        // Monday of the current week = "week commencing" date.
+        let cal = Calendar.current
+        let weekday = cal.component(.weekday, from: now)     // 1 = Sun … 7 = Sat
+        let daysSinceMonday = (weekday + 5) % 7              // Mon=0, Tue=1, … Sun=6
+        let monday = cal.date(byAdding: .day, value: -daysSinceMonday, to: cal.startOfDay(for: now)) ?? now
+        let weekFolder = "WC \(df.string(from: monday))"
+
+        let dir = movies
+            .appendingPathComponent("CoachCap", isDirectory: true)
+            .appendingPathComponent(weekFolder, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        let dateStr = df.string(from: now)
 
         let base = clientName.trimmingCharacters(in: .whitespaces).isEmpty
             ? "Recording"

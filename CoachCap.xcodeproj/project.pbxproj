@@ -19,6 +19,7 @@
 		3631FB764A96FDB8E1AB8855 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9949FD2C41F8BB91C270B93D /* Brand.swift */; };
 		36566D057C8C005500D23423 /* PhotoToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */; };
 		40A0229451EAB5D97F3C7163 /* DateCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */; };
+		478D4C6627B075B02EB1F286 /* AreaSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCABBEFB81EC161C4F28B93 /* AreaSelector.swift */; };
 		4EC2B677B89F0FE9962102F8 /* PhotoStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */; };
 		5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */; };
 		5BED838DFC1E2E8F3A0673FE /* FloatingCameraPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */; };
@@ -72,6 +73,7 @@
 		E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		EB87094AD033A9921289BDE5 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		EDDB351DC51C5F94B3B4840D /* WhatsAppShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppShare.swift; sourceTree = "<group>"; };
+		FCCABBEFB81EC161C4F28B93 /* AreaSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AreaSelector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +199,7 @@
 		F673F931CB14B343FF54AA69 /* Recording */ = {
 			isa = PBXGroup;
 			children = (
+				FCCABBEFB81EC161C4F28B93 /* AreaSelector.swift */,
 				059730CB03C1E1B1869367A8 /* DisplayList.swift */,
 				A75A1F318DEE96B9FDE2E6A6 /* RecordingSession.swift */,
 			);
@@ -282,6 +285,7 @@
 				5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */,
 				1D2658976C140792B9B45B8E /* AnnotationView.swift in Sources */,
 				F36BEDE81E80A3A2345C0BF7 /* AppState.swift in Sources */,
+				478D4C6627B075B02EB1F286 /* AreaSelector.swift in Sources */,
 				3631FB764A96FDB8E1AB8855 /* Brand.swift in Sources */,
 				D54D3A156A7B67C3BE3C97D2 /* CameraManager.swift in Sources */,
 				2A63A2E79300213455F91902 /* CameraPreviewLayer.swift in Sources */,

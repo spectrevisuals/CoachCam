@@ -17,6 +17,16 @@ struct RecordingView: View {
     @State private var freeGBText = ""
     @State private var showQuotaAlert = false
 
+    /// When on, the main window hides the moment recording begins so the coach can talk
+    /// over another app (e.g. Google Sheets or Photos). Persisted across launches.
+    @AppStorage("hideWindowWhileRecording") private var hideWindowWhileRecording = false
+    /// The window we hid for the current recording, so we can bring it back on stop.
+    @State private var recordingWindow: NSWindow? = nil
+    /// Retains the custom-area selector overlay while the coach is drawing the box.
+    @State private var areaSelector: AreaSelectorController? = nil
+    /// Persistent orange outline showing the active custom area on screen.
+    @State private var areaIndicator: AreaIndicatorWindow? = nil
+
     /// Recordings use roughly 30 MB/minute; warn below ~2 GB so a coach never loses a
     /// check-in to a full disk.
     private static let minFreeBytes: Int64 = 2_000_000_000
@@ -59,6 +69,15 @@ struct RecordingView: View {
         .onChange(of: session.errorMessage) { _, msg in
             if let msg { appState.errorMessage = msg }
         }
+        // Whenever recording ends — via stop, the float cam, or the free-tier timeout —
+        // bring the main window back to the front so the "send to whatsapp" banner is
+        // immediately reachable (and so an auto-hidden window can't get stranded).
+        .onChange(of: session.isRunning) { _, running in
+            if !running { restoreMainWindow() }
+        }
+        // Keep the on-screen custom-area outline in sync with the selection.
+        .onChange(of: appState.customArea) { _, _ in refreshAreaIndicator() }
+        .onDisappear { areaIndicator?.orderOut(nil); areaIndicator = nil }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notif in
             if notif.object as AnyObject === floatingPanel {
                 cancelCountdown()
@@ -160,9 +179,13 @@ struct RecordingView: View {
                 Color.clear
                     .overlay(
                         BrandEmptyState(
-                            icon: session.isRunning ? "record.circle.fill" : "desktopcomputer",
-                            title: session.isRunning ? "recording your screen…" : "screen + face cam",
-                            subtitle: "your screen appears here when you hit record",
+                            icon: session.isRunning ? "record.circle.fill"
+                                : (appState.customArea != nil ? "rectangle.dashed" : "desktopcomputer"),
+                            title: session.isRunning ? "recording…"
+                                : (appState.customArea != nil ? "custom area + face cam" : "screen + face cam"),
+                            subtitle: appState.customArea != nil
+                                ? "only the area you drew is recorded — look for the orange outline on screen"
+                                : "your screen is recorded directly — no preview needed",
                             iconSize: 26, boxSize: 60)
                     )
 
@@ -302,6 +325,19 @@ struct RecordingView: View {
             // Webcam-only / mirror segmented control
             segmentedModes
 
+            // Custom area (Loom-style drag-a-box capture). Hidden in webcam-only mode.
+            if !appState.webcamOnlyMode {
+                Button { toggleCustomArea() } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: appState.customArea == nil ? "rectangle.dashed" : "rectangle.dashed.badge.record")
+                        Text(customAreaLabel)
+                    }
+                }
+                .buttonStyle(OutlineButtonStyle(active: appState.customArea != nil))
+                .disabled(session.isRunning)
+                .help("Record only a custom area of the screen. Click to drag a box; click again to clear.")
+            }
+
             // Floating cam
             Button { toggleFloatingCam() } label: {
                 HStack(spacing: 7) {
@@ -406,12 +442,19 @@ struct RecordingView: View {
     private var segmentedModes: some View {
         HStack(spacing: 3) {
             segItem("webcam only", active: appState.webcamOnlyMode, icon: nil) {
-                if !session.isRunning { appState.webcamOnlyMode.toggle() }
+                if !session.isRunning {
+                    appState.webcamOnlyMode.toggle()
+                    if appState.webcamOnlyMode { clearCustomArea() }   // custom area is screen-only
+                }
             }
             segItem("mirror", active: camera.mirrorEnabled, icon: "arrow.left.and.right") {
                 camera.mirrorEnabled.toggle()
                 session.updateMirror(camera.mirrorEnabled)
             }
+            segItem("auto-hide", active: hideWindowWhileRecording, icon: "macwindow") {
+                if !session.isRunning { hideWindowWhileRecording.toggle() }
+            }
+            .help("Hide the CoachCam window when recording starts — handy for talking over Google Sheets or Photos. Pair it with float cam so you can still stop.")
         }
         .padding(3)
         .frame(height: 40)
@@ -498,19 +541,30 @@ struct RecordingView: View {
     private func startRecording() {
         guard !appState.isSaving else { return }
 
-        // Capture the selected monitor at its own aspect ratio (webcam-only mode
-        // keeps the standard 16:9 frame).
+        // A custom area (Loom-style) crops the capture to the drawn box; otherwise capture
+        // the selected monitor at its own aspect ratio (webcam-only keeps the 16:9 frame).
+        let usingCustomArea = !appState.webcamOnlyMode && appState.customArea != nil
         let chosenDisplay = DisplayList.option(for: appState.selectedDisplayID)
-        let videoSize = appState.webcamOnlyMode
-            ? CGSize(width: 1920, height: 1080)
-            : (chosenDisplay?.recommendedOutputSize ?? CGSize(width: 1920, height: 1080))
+        let videoSize: CGSize = {
+            if appState.webcamOnlyMode { return CGSize(width: 1920, height: 1080) }
+            if usingCustomArea, let px = appState.customAreaPixelSize { return px }
+            return chosenDisplay?.recommendedOutputSize ?? CGSize(width: 1920, height: 1080)
+        }()
+
+        // Prefer the client picked in the WhatsApp photo tool so the file is named after
+        // them and easy to find; fall back to the manual client-name field.
+        let clientForFile: String = {
+            if let w = appState.whatsAppClientName?.trimmingCharacters(in: .whitespaces), !w.isEmpty { return w }
+            return appState.clientName
+        }()
 
         let config = RecordingConfig(
-            outputURL: RecordingConfig.autoOutputURL(clientName: appState.clientName),
+            outputURL: RecordingConfig.autoOutputURL(clientName: clientForFile),
             videoSize: videoSize,
             pipNormalizedRect: appState.pipRect,
             selectedMicID: appState.selectedMicID,
-            displayID: appState.webcamOnlyMode ? nil : chosenDisplay?.id
+            displayID: appState.webcamOnlyMode ? nil : (usingCustomArea ? appState.customAreaDisplayID : chosenDisplay?.id),
+            sourceRect: usingCustomArea ? appState.customArea : nil
         )
         Task {
             do {
@@ -519,6 +573,7 @@ struct RecordingView: View {
                                         cameraFloating: floatingPanel != nil)
                 appState.isRecording = true
                 appState.startTimer()
+                hideMainWindowForRecording()
                 // Count this recording against the free monthly quota (paid = unlimited).
                 if !licenseManager.isUnlocked { RecordingQuota.recordOne() }
             } catch {
@@ -541,6 +596,98 @@ struct RecordingView: View {
         }
     }
 
+    // MARK: Window hide / restore
+
+    /// The main content window (the titled SwiftUI window), never the floating cam panel.
+    private func mainWindow() -> NSWindow? {
+        NSApp.windows.first { $0.styleMask.contains(.titled) && !($0 is FloatingCameraPanel) }
+    }
+
+    /// Hide the main window as recording starts (when the toggle is on). Skipped in
+    /// webcam-only mode, where the window itself is the thing being recorded.
+    private func hideMainWindowForRecording() {
+        guard hideWindowWhileRecording, !appState.webcamOnlyMode else { return }
+        if let win = mainWindow() {
+            recordingWindow = win
+            win.orderOut(nil)
+        }
+    }
+
+    /// Bring the main window back to the front and focus the app. Safe to call on any
+    /// stop — if the window was never hidden it simply surfaces it for the save banner.
+    private func restoreMainWindow() {
+        let win = recordingWindow ?? mainWindow()
+        recordingWindow = nil
+        guard let win else { return }
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // MARK: Custom area
+
+    private var customAreaLabel: String {
+        if let px = appState.customAreaPixelSize {
+            return "area \(Int(px.width))×\(Int(px.height))"
+        }
+        return "custom area"
+    }
+
+    /// Click to draw a box; click again (when one is set) to clear back to full screen.
+    private func toggleCustomArea() {
+        guard !session.isRunning else { return }
+        if appState.customArea != nil { clearCustomArea(); return }
+
+        let screen = screenForSelectedDisplay() ?? NSScreen.main
+        guard let screen else { return }
+        let scale = screen.backingScaleFactor
+        let selector = AreaSelectorController { rect, displayID in
+            guard let rect, let displayID else { return }   // Esc / too-small = cancelled
+            appState.customArea = rect
+            appState.customAreaDisplayID = displayID
+            appState.customAreaPixelSize = Self.evenPixelSize(rect.size, scale: scale)
+            appState.webcamOnlyMode = false   // custom area is a screen mode
+            areaSelector = nil
+        }
+        areaSelector = selector
+        selector.present(on: screen)
+    }
+
+    private func clearCustomArea() {
+        appState.customArea = nil
+        appState.customAreaDisplayID = nil
+        appState.customAreaPixelSize = nil
+    }
+
+    private func screenForSelectedDisplay() -> NSScreen? {
+        screen(forDisplayID: appState.selectedDisplayID)
+    }
+
+    private func screen(forDisplayID id: CGDirectDisplayID?) -> NSScreen? {
+        if let id {
+            return NSScreen.screens.first {
+                ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
+            }
+        }
+        return NSScreen.main
+    }
+
+    /// Show / move / hide the persistent orange outline to match the current custom area.
+    private func refreshAreaIndicator() {
+        areaIndicator?.orderOut(nil)
+        areaIndicator = nil
+        guard let rect = appState.customArea,
+              let screen = screen(forDisplayID: appState.customAreaDisplayID) else { return }
+        let win = AreaIndicatorWindow(screen: screen, rect: rect)
+        win.orderFront(nil)
+        areaIndicator = win
+    }
+
+    /// H.264 needs even dimensions — round the region's pixel size to the nearest even values.
+    private static func evenPixelSize(_ pointSize: CGSize, scale: CGFloat) -> CGSize {
+        func even(_ v: CGFloat) -> CGFloat { let i = Int((v * scale).rounded()); return CGFloat(max(2, i - (i % 2))) }
+        return CGSize(width: even(pointSize.width), height: even(pointSize.height))
+    }
+
     private func toggleFloatingCam() {
         if let panel = floatingPanel {
             panel.close()
@@ -556,7 +703,8 @@ struct RecordingView: View {
                     else               { session.pause();  appState.isPaused = true;  appState.pauseTimer()  }
                 },
                 onStop: { stopAndSave() },
-                onCancelCountdown: { cancelCountdown() }
+                onCancelCountdown: { cancelCountdown() },
+                onCustomArea: { toggleCustomArea() }
             )
             panel.orderFront(nil)
             floatingPanel = panel

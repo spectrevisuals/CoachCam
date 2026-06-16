@@ -161,6 +161,12 @@ final class RecordingSession: NSObject, ObservableObject {
         cfg.channelCount  = 2
         cfg.pixelFormat   = kCVPixelFormatType_32BGRA
 
+        // Custom area: capture only the chosen sub-rect of the display. sourceRect is in
+        // points; width/height stay at the region's pixel size for a 1:1, undistorted crop.
+        if let sr = config.sourceRect {
+            cfg.sourceRect = sr
+        }
+
         NSLog("DEBUG: Creating SCStream...")
         let sc = SCStream(filter: filter, configuration: cfg, delegate: self)
         NSLog("DEBUG: SCStream created: \(sc)")

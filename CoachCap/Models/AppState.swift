@@ -23,6 +23,21 @@ final class AppState: ObservableObject {
     @Published var selectedDisplayID: CGDirectDisplayID? = nil   // nil = primary
     @Published var webcamOnlyMode = false
 
+    // Loom-style "custom area": when set, only the screen content inside this rect is
+    // recorded. Rect is in the target display's coordinate space (points, top-left origin,
+    // matching SCStreamConfiguration.sourceRect). Pixel size is precomputed for the output.
+    @Published var customArea: CGRect? = nil
+    @Published var customAreaDisplayID: CGDirectDisplayID? = nil
+    @Published var customAreaPixelSize: CGSize? = nil
+
+    // Float cam circle diameter (points). Cycled S/M/L from the float cam; remembered.
+    @Published var floatCamDiameter: CGFloat = {
+        let v = UserDefaults.standard.double(forKey: "floatCamDiameter")
+        return v > 0 ? CGFloat(v) : 160
+    }() {
+        didSet { UserDefaults.standard.set(Double(floatCamDiameter), forKey: "floatCamDiameter") }
+    }
+
     // Client name for auto-naming the output file
     @Published var clientName: String = ""
 
