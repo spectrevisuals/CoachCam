@@ -23,7 +23,7 @@ struct PhotoToolView: View {
     @State private var savedURL: URL?      = nil
     @State private var errorMsg: String?   = nil
     @State private var showWhatsApp        = true
-    @State private var viewMode: ViewMode  = .manual
+    @State private var viewMode: ViewMode  = .browse   // open on smart match
     @State private var exportClientName    = ""
     @State private var annotationImage:    NSImage? = nil
     @State private var showAnnotation      = false
@@ -127,9 +127,9 @@ struct PhotoToolView: View {
 
             // Mode toggle — shared segmented control
             BrandSegmented(selection: $viewMode, options: [
-                ("paste",       ViewMode.manual),
+                ("smart match", ViewMode.browse),
                 ("by date",     ViewMode.dateCompare),
-                ("smart match", ViewMode.browse)
+                ("paste",       ViewMode.manual)
             ], compact: true, recommended: ViewMode.browse)
             .frame(width: 320)
 

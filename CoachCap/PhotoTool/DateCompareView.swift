@@ -222,7 +222,7 @@ struct BrowseView: View {
                 Divider().frame(height: 20)
 
                 Toggle(isOn: $reverseControls) {
-                    Label("Reverse WASD", systemImage: reverseControls ? "arrow.2.squarepath" : "keyboard")
+                    Label("reverse a+d and arrows", systemImage: reverseControls ? "arrow.2.squarepath" : "keyboard")
                         .font(.caption)
                 }
                 .toggleStyle(.checkbox)
@@ -264,6 +264,19 @@ struct BrowseView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .background(Brand.bgElev)
+
+            // Prominent, always-visible fallback: AI match isn't perfect, so make manual
+            // scrubbing unmistakable. Full-width accent strip under the toolbar.
+            HStack(spacing: 8) {
+                Image(systemName: "keyboard").foregroundColor(Brand.accent)
+                Text("AI match not quite right? Use **A / D** for the left photo and **← / →** for the right to line them up by hand — tick ‘sync arrows’ to move both together.")
+                    .font(Brand.font(12))
+                    .foregroundColor(Brand.text.opacity(0.9))
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Brand.accentSoft)
 
             Divider()
 
@@ -329,8 +342,9 @@ struct BrowseView: View {
                 return nil
             }
 
-            // Determine which side gets arrows vs WASD
-            let arrowControlsLeft = !self.reverseControls
+            // Default: A/D control the LEFT side, arrows control the RIGHT side.
+            // "reverse a+d and arrows" swaps that.
+            let arrowControlsLeft = self.reverseControls
 
             if self.linked {
                 let cap = max(self.leftCount, self.rightCount)

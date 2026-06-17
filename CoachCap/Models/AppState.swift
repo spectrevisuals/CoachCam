@@ -32,7 +32,7 @@ final class AppState: ObservableObject {
 
     // Auto-hide: minimise the main window while recording. Lives here (not @AppStorage in
     // the view) so the float cam's captured closures always read the live value. Persisted.
-    @Published var hideWindowWhileRecording: Bool = UserDefaults.standard.bool(forKey: "hideWindowWhileRecording") {
+    @Published var hideWindowWhileRecording: Bool = UserDefaults.standard.object(forKey: "hideWindowWhileRecording") as? Bool ?? true {
         didSet { UserDefaults.standard.set(hideWindowWhileRecording, forKey: "hideWindowWhileRecording") }
     }
 

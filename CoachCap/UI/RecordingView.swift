@@ -486,6 +486,8 @@ struct RecordingView: View {
             HStack(spacing: 5) {
                 if let icon { Image(systemName: icon).font(.system(size: 13)) }
                 Text(title).font(Brand.font(12, active ? .semibold : .medium))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)   // never truncate (e.g. "auto-hide" → "auto")
             }
             .foregroundStyle(active ? Brand.text : Brand.muted)
             .padding(.horizontal, 11).padding(.vertical, 7)
@@ -702,9 +704,35 @@ struct RecordingView: View {
             appState.customAreaPixelSize = Self.evenPixelSize(rect.size, scale: scale)
             appState.webcamOnlyMode = false   // custom area is a screen mode
             areaSelector = nil
+            // Drop the float cam into the area the coach just drew (bottom-left) so the
+            // face-cam lands inside the recorded region.
+            placeFloatCamInCustomArea()
         }
         areaSelector = selector
         selector.present(on: screen)
+    }
+
+    /// If the float cam is up and a custom area is set, tuck the cam into the area's
+    /// bottom-right corner (shrinking it to fit if needed) so it sits inside what's recorded.
+    private func placeFloatCamInCustomArea() {
+        guard let panel = floatingPanel,
+              let rect = appState.customArea,
+              let screen = screen(forDisplayID: appState.customAreaDisplayID) else { return }
+        let margin: CGFloat = 12
+        let controlsH: CGFloat = 58
+        // Fit inside the area (leave room for the control strip below the circle), but never
+        // below the float cam's minimum diameter.
+        let fitD = min(appState.floatCamDiameter,
+                       rect.width - margin * 2,
+                       rect.height - controlsH - margin * 2)
+        let d = max(90, fitD)
+        if abs(d - appState.floatCamDiameter) > 0.5 { appState.floatCamDiameter = d }
+        // Area rect is top-left origin within its display; convert to global (Cocoa,
+        // bottom-left origin) coords and pin the panel to the area's bottom-right corner.
+        let panelW  = d
+        let rightX  = screen.frame.minX + rect.maxX - panelW
+        let bottomY = screen.frame.maxY - (rect.minY + rect.height)
+        panel.setFrameOrigin(NSPoint(x: rightX - margin, y: bottomY + margin))
     }
 
     private func clearCustomArea() {
@@ -765,6 +793,8 @@ struct RecordingView: View {
             panel.orderFront(nil)
             floatingPanel = panel
             session.setCameraFloating(true)
+            // If a custom area is already drawn, drop the cam straight into it.
+            placeFloatCamInCustomArea()
         }
     }
 
