@@ -28,6 +28,7 @@
 		6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5047323346857C0344F8B834 /* ContentView.swift */; };
 		74C629C9E54499D2DE4B6167 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */; };
 		77CB74C3DB382FCD045F0FA3 /* Quicksand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4AF37094750898D0CD8C49BC /* Quicksand.ttf */; };
+		CCA55E7B0117D4C636960001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCA55E7F11ED4EFE36960002 /* Assets.xcassets */; };
 		908780C54FA67B1611B2A594 /* FreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4A3F8262610CFE599FDEA7 /* FreeTier.swift */; };
 		9AF0544A8ABA5DF7BC29EA5C /* LemonSqueezyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */; };
 		A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */; };
@@ -39,6 +40,7 @@
 		D54D3A156A7B67C3BE3C97D2 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 852B45D3697090E8F0B88312 /* CameraManager.swift */; };
 		DAE2EBC1769D180E62C85E11 /* CoachCapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50EDFCBA28C1F4EB10570E46 /* CoachCapApp.swift */; };
 		F36BEDE81E80A3A2345C0BF7 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCA12EB0821EB2A466211D5 /* AppState.swift */; };
+		CCA55E7C0117D4C636960003 /* AppSounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA55E7D11ED4EFE36960004 /* AppSounds.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -52,6 +54,7 @@
 		406844247D2A2F801DD13664 /* LicenseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseView.swift; sourceTree = "<group>"; };
 		4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStitcher.swift; sourceTree = "<group>"; };
 		4AF37094750898D0CD8C49BC /* Quicksand.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Quicksand.ttf; sourceTree = "<group>"; };
+		CCA55E7F11ED4EFE36960002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5047323346857C0344F8B834 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		50EDFCBA28C1F4EB10570E46 /* CoachCapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCapApp.swift; sourceTree = "<group>"; };
 		5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCameraPanel.swift; sourceTree = "<group>"; };
@@ -69,6 +72,7 @@
 		B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMatchEngine.swift; sourceTree = "<group>"; };
 		CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoToolView.swift; sourceTree = "<group>"; };
 		DDCA12EB0821EB2A466211D5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		CCA55E7D11ED4EFE36960004 /* AppSounds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSounds.swift; sourceTree = "<group>"; };
 		E1FA0EE5C1EA9FD2DBD3B7F9 /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
 		E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		EB87094AD033A9921289BDE5 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
@@ -130,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				50EDFCBA28C1F4EB10570E46 /* CoachCapApp.swift */,
+				CCA55E7F11ED4EFE36960002 /* Assets.xcassets */,
 				0AD7FF0A07367756457893F6 /* Camera */,
 				DF34933478A0FA5435657A5B /* Compositor */,
 				7423CC232B6434A80C1D4D66 /* Export */,
@@ -162,6 +167,7 @@
 			isa = PBXGroup;
 			children = (
 				DDCA12EB0821EB2A466211D5 /* AppState.swift */,
+				CCA55E7D11ED4EFE36960004 /* AppSounds.swift */,
 				6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */,
 				1D4A3F8262610CFE599FDEA7 /* FreeTier.swift */,
 				EB87094AD033A9921289BDE5 /* Keychain.swift */,
@@ -272,6 +278,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				77CB74C3DB382FCD045F0FA3 /* Quicksand.ttf in Resources */,
+				CCA55E7B0117D4C636960001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,6 +292,7 @@
 				5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */,
 				1D2658976C140792B9B45B8E /* AnnotationView.swift in Sources */,
 				F36BEDE81E80A3A2345C0BF7 /* AppState.swift in Sources */,
+				CCA55E7C0117D4C636960003 /* AppSounds.swift in Sources */,
 				478D4C6627B075B02EB1F286 /* AreaSelector.swift in Sources */,
 				3631FB764A96FDB8E1AB8855 /* Brand.swift in Sources */,
 				D54D3A156A7B67C3BE3C97D2 /* CameraManager.swift in Sources */,

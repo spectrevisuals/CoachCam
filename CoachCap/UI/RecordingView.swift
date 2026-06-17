@@ -82,7 +82,7 @@ struct RecordingView: View {
             }
         }
         .alert("Low disk space", isPresented: $showLowStorageAlert) {
-            Button("Record anyway") { beginCountdown() }
+            Button("Record anyway") { launchRecordingFlow() }
             Button("Open Storage Settings") {
                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.settings.Storage")!)
             }
@@ -321,6 +321,9 @@ struct RecordingView: View {
             // Webcam-only / mirror segmented control
             segmentedModes
 
+            // Countdown on/off + countdown sound on/off
+            countdownControls
+
             // Custom area (Loom-style drag-a-box capture). Hidden in webcam-only mode.
             if !appState.webcamOnlyMode {
                 Button { toggleCustomArea() } label: {
@@ -458,6 +461,26 @@ struct RecordingView: View {
         .overlay(RoundedRectangle(cornerRadius: Brand.radius, style: .continuous).stroke(Brand.controlBorder, lineWidth: 1))
     }
 
+    private var countdownControls: some View {
+        HStack(spacing: 3) {
+            segItem("countdown", active: appState.countdownEnabled, icon: "timer") {
+                if !session.isRunning { appState.countdownEnabled.toggle() }
+            }
+            .help("Show a 3-2-1 countdown before recording. Turn off to start instantly. While counting, tap the countdown to start now.")
+            segItem(appState.soundEffectsEnabled ? "sound on" : "sound off",
+                    active: appState.soundEffectsEnabled,
+                    icon: appState.soundEffectsEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill") {
+                appState.soundEffectsEnabled.toggle()
+            }
+            .help("Play a chime when recording starts and stops.")
+            Spacer(minLength: 0)
+        }
+        .padding(3)
+        .frame(height: 40)
+        .background(RoundedRectangle(cornerRadius: Brand.radius, style: .continuous).fill(Brand.control))
+        .overlay(RoundedRectangle(cornerRadius: Brand.radius, style: .continuous).stroke(Brand.controlBorder, lineWidth: 1))
+    }
+
     private func segItem(_ title: String, active: Bool, icon: String?, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
@@ -512,13 +535,23 @@ struct RecordingView: View {
             showLowStorageAlert = true
             return
         }
-        beginCountdown()
+        launchRecordingFlow()
+    }
+
+    /// Either run the 3-2-1 countdown or start immediately, per the coach's preference.
+    private func launchRecordingFlow() {
+        if appState.countdownEnabled {
+            beginCountdown()
+        } else {
+            startRecording()
+        }
     }
 
     private func beginCountdown() {
         appState.countdownTask = Task { @MainActor in
             for i in stride(from: 3, through: 1, by: -1) {
                 appState.countdownValue = i
+                if appState.soundEffectsEnabled { AppSounds.shared.playTick() }
                 try? await Task.sleep(for: .seconds(1))
                 if Task.isCancelled { appState.countdownValue = nil; return }
             }
@@ -526,6 +559,15 @@ struct RecordingView: View {
             guard !Task.isCancelled else { return }
             startRecording()
         }
+    }
+
+    /// Skip the remaining countdown and start recording right now (tap on the countdown).
+    private func skipCountdown() {
+        guard appState.countdownValue != nil else { return }
+        appState.countdownTask?.cancel()
+        appState.countdownTask = nil
+        appState.countdownValue = nil
+        startRecording()
     }
 
     private func cancelCountdown() {
@@ -536,6 +578,9 @@ struct RecordingView: View {
 
     private func startRecording() {
         guard !appState.isSaving else { return }
+
+        // "Go" chime — plays just before capture spins up, so it isn't recorded.
+        if appState.soundEffectsEnabled { AppSounds.shared.playStart() }
 
         // A custom area (Loom-style) crops the capture to the drawn box; otherwise capture
         // the selected monitor at its own aspect ratio (webcam-only keeps the 16:9 frame).
@@ -582,6 +627,9 @@ struct RecordingView: View {
         appState.isSaving = true
         appState.stopTimer()
         appState.isRecording = false
+        // Jump back to the recorder tab so the "send to whatsapp" banner is right there —
+        // e.g. if the coach kicked off a float-cam recording from the before/after screen.
+        appState.activeTab = .recorder
         // Always bring the window back on stop, in every mode (also handled by the
         // isRunning observer, but do it here too so it's immediate and guaranteed).
         restoreMainWindow()
@@ -590,6 +638,9 @@ struct RecordingView: View {
             let url = await session.stop()
             appState.lastSavedURL = url
             appState.isSaving = false
+            // "Done" chime once the file is fully written — after capture has ended, so it's
+            // never part of the recording.
+            if appState.soundEffectsEnabled { AppSounds.shared.playStop() }
             // Persist the banner — it holds the "send to whatsapp" action — until dismissed.
             withAnimation { showSavedBanner = true }
         }
@@ -708,6 +759,7 @@ struct RecordingView: View {
                 },
                 onStop: { stopAndSave() },
                 onCancelCountdown: { cancelCountdown() },
+                onSkipCountdown: { skipCountdown() },
                 onCustomArea: { toggleCustomArea() }
             )
             panel.orderFront(nil)
@@ -719,15 +771,23 @@ struct RecordingView: View {
     private func countdownOverlay(_ count: Int) -> some View {
         ZStack {
             Color.black.opacity(0.55)
-            Text("\(count)")
-                .font(.system(size: 120, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .shadow(color: .black.opacity(0.3), radius: 12)
-                .id(count)
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.6).combined(with: .opacity),
-                    removal:   .scale(scale: 1.4).combined(with: .opacity)
-                ))
+            VStack(spacing: 24) {
+                Text("\(count)")
+                    .font(.system(size: 120, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.3), radius: 12)
+                    .id(count)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.6).combined(with: .opacity),
+                        removal:   .scale(scale: 1.4).combined(with: .opacity)
+                    ))
+                HStack(spacing: 12) {
+                    Button("start now") { skipCountdown() }
+                        .buttonStyle(PrimaryButtonStyle())
+                    Button("cancel") { cancelCountdown() }
+                        .buttonStyle(OutlineButtonStyle())
+                }
+            }
         }
     }
 

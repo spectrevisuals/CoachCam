@@ -13,6 +13,7 @@ final class FloatingCameraPanel: NSPanel {
          onPauseResume: @escaping () -> Void,
          onStop: @escaping () -> Void,
          onCancelCountdown: @escaping () -> Void,
+         onSkipCountdown: @escaping () -> Void,
          onCustomArea: @escaping () -> Void) {
 
         super.init(
@@ -26,6 +27,8 @@ final class FloatingCameraPanel: NSPanel {
         isMovableByWindowBackground = true
         backgroundColor = .clear
         isOpaque = false
+        // The backing is now a rounded-rect brand card (see host.layer below), so the
+        // window shadow traces a clean rounded shape — no more jagged halo.
         hasShadow = true
         ignoresMouseEvents = false
 
@@ -43,10 +46,18 @@ final class FloatingCameraPanel: NSPanel {
             onPauseResume: onPauseResume,
             onStop: onStop,
             onCancelCountdown: onCancelCountdown,
+            onSkipCountdown: onSkipCountdown,
             onCustomArea: onCustomArea,
             onClose: { [weak self] in self?.close() }
         ))
         host.autoresizingMask = [.width, .height]
+        // The hosting view backing is unavoidably a filled rectangle; rather than fight it,
+        // make it an intentional dark, rounded brand card so the whole float cam reads as a
+        // soft branded bubble instead of a harsh light-grey rectangle.
+        host.wantsLayer = true
+        host.layer?.backgroundColor = NSColor(Color(hex: 0x46454B, alpha: 0.70)).cgColor   // soft brand grey, slightly translucent
+        host.layer?.cornerRadius = 22
+        host.layer?.cornerCurve = .continuous
         contentView = host
 
         // Resize the panel (anchored to its bottom-right corner) whenever the coach
@@ -79,6 +90,7 @@ private struct FloatingCameraView: View {
     let onPauseResume: () -> Void
     let onStop: () -> Void
     let onCancelCountdown: () -> Void
+    let onSkipCountdown: () -> Void
     let onCustomArea: () -> Void
     let onClose: () -> Void
 
@@ -87,6 +99,11 @@ private struct FloatingCameraView: View {
     private let minDiameter: CGFloat = 90
     private let maxDiameter: CGFloat = 380
 
+    // Orange branded ring around the circle — scales gently with the cam size.
+    private var ringWidth: CGFloat { max(3, d * 0.025) }
+    // Small "CC" logo watermark size.
+    private var badgeSize: CGFloat { max(22, min(40, d * 0.16)) }
+
     var body: some View {
         VStack(spacing: 0) {
             cameraCircle
@@ -94,10 +111,12 @@ private struct FloatingCameraView: View {
                 .padding(.horizontal, 8)
                 .padding(.top, 8)
                 .padding(.bottom, 4)
+                // The control bar casts its own soft shadow that hugs the rounded buttons,
+                // rather than a boxy full-frame shadow behind the whole panel.
+                .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
         }
         .frame(width: d, height: d + controlsHeight)
         .overlay(alignment: .topLeading) { resizeGrip }
-        .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
         .animation(.easeOut(duration: 0.2), value: appState.countdownValue)
         .animation(.easeOut(duration: 0.2), value: appState.isRecording)
     }
@@ -123,7 +142,6 @@ private struct FloatingCameraView: View {
             }
             .frame(width: d, height: d)
             .clipShape(Circle())
-            .shadow(radius: 8)
 
             // Countdown overlay on the circle
             if let count = appState.countdownValue {
@@ -177,6 +195,32 @@ private struct FloatingCameraView: View {
 
         }
         .frame(width: d, height: d)
+        // Crisp orange branded ring instead of the old jagged shadow halo.
+        .overlay(
+            Circle()
+                .strokeBorder(
+                    LinearGradient(colors: [Brand.accent2, Brand.accent],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: ringWidth)
+        )
+        // Small "CC" logo badge nestled on the lower-right rim. The corner of the square
+        // bounding box sits outside the circular feed, so the mark never covers the camera.
+        .overlay(alignment: .bottomTrailing) {
+            ccBadge.padding([.bottom, .trailing], max(3, d * 0.02))
+        }
+        .shadow(color: .black.opacity(0.45), radius: 10, y: 3)
+    }
+
+    // The "CC" app-mark, pinned to the lower-right rim as a subtle brand badge.
+    private var ccBadge: some View {
+        Image("CCBadge")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: badgeSize, height: badgeSize)
+            .clipShape(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous)
+                .stroke(Color.white.opacity(0.9), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
     }
 
     // MARK: Controls
@@ -184,9 +228,19 @@ private struct FloatingCameraView: View {
     @ViewBuilder
     private var controlStrip: some View {
         if appState.countdownValue != nil {
-            Button("Cancel", action: onCancelCountdown)
-                .frame(maxWidth: .infinity, minHeight: 34)
+            HStack(spacing: 8) {
+                Button(action: onSkipCountdown) {
+                    Text("start").font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                }
+                .buttonStyle(FloatButtonStyle(color: Brand.accent))
+
+                Button(action: onCancelCountdown) {
+                    Text("cancel").font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                }
                 .buttonStyle(FloatButtonStyle(color: Color(white: 0.25)))
+            }
 
         } else if appState.isRecording {
             HStack(spacing: 8) {

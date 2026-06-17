@@ -24,17 +24,21 @@ final class AreaSelectorController {
             self.completion(rect, rect == nil ? nil : displayID)
         }
         window = win
-        win.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        // Show the overlay WITHOUT activating CoachCam. Activation would pull the main window
+        // in front of the very content the coach is boxing; a non-activating panel stays
+        // interactive (drag to select) without stealing focus or raising our windows.
+        win.orderFrontRegardless()
     }
 }
 
-final class AreaSelectorWindow: NSWindow {
+final class AreaSelectorWindow: NSPanel {
     private let onDone: (CGRect?) -> Void
 
     init(screen: NSScreen, onDone: @escaping (CGRect?) -> Void) {
         self.onDone = onDone
-        super.init(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        super.init(contentRect: screen.frame,
+                   styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
         setFrame(screen.frame, display: true)
         level = .screenSaver
         backgroundColor = .clear
@@ -48,6 +52,9 @@ final class AreaSelectorWindow: NSWindow {
 
     override var canBecomeKey: Bool { true }
 
+    // Esc still cancels if CoachCam happens to be the active app; the primary cancel path is
+    // a plain click (handled in AreaSelectorView), since a non-activating panel won't reliably
+    // receive key events when another app is frontmost.
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { onDone(nil) }   // Esc cancels
     }
@@ -118,6 +125,10 @@ private final class AreaSelectorView: NSView {
 
     override var isFlipped: Bool { true }   // top-left origin so coords map to sourceRect
 
+    // The overlay panel is non-activating, so without this the first click would only focus
+    // the window and the initial drag would be ignored — making the coach drag twice.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
 
     override func mouseDown(with e: NSEvent) {
@@ -135,11 +146,12 @@ private final class AreaSelectorView: NSView {
     }
 
     override func mouseUp(with e: NSEvent) {
-        // Ignore a stray click / tiny drag; require a usable box.
         if selection.width >= 40, selection.height >= 40 {
-            onDone(selection)
+            onDone(selection)                       // usable box → confirm
+        } else if selection.width < 1, selection.height < 1 {
+            onDone(nil)                             // plain click (no drag) → cancel
         } else {
-            selection = .zero
+            selection = .zero                       // fumbled tiny drag → reset, try again
             needsDisplay = true
         }
     }
@@ -169,7 +181,7 @@ private final class AreaSelectorView: NSView {
             drawBadge("\(w) × \(h)", at: NSPoint(x: s.minX, y: max(4, s.minY - 26)))
         }
 
-        drawBadge("drag to select an area  ·  esc to cancel",
+        drawBadge("drag to select an area  ·  click to cancel",
                   at: NSPoint(x: bounds.midX - 150, y: 18), wide: true)
     }
 

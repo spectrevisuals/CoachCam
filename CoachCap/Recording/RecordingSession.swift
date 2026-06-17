@@ -114,6 +114,10 @@ final class RecordingSession: NSObject, ObservableObject {
             recordingTimeRemaining = nil
         }
         cs = CS()   // reset state
+        // Sync the burned-in mirror with the live setting. Without this the compositor keeps
+        // its default (off) unless the user happens to toggle the mirror button, so the saved
+        // video wouldn't mirror even though the preview (and the toggle) say it should.
+        compositor.mirrorCamera = camera.mirrorEnabled
         locked {
             $0.pipRect    = config.pipNormalizedRect
             $0.outputSize = config.videoSize

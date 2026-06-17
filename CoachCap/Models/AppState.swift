@@ -44,6 +44,15 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(Double(floatCamDiameter), forKey: "floatCamDiameter") }
     }
 
+    // Countdown + sound preferences (persisted, on by default). `countdownEnabled` off starts
+    // recording immediately with no 3-2-1; `soundEffectsEnabled` mutes the start/stop chimes.
+    @Published var countdownEnabled: Bool = UserDefaults.standard.object(forKey: "countdownEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(countdownEnabled, forKey: "countdownEnabled") }
+    }
+    @Published var soundEffectsEnabled: Bool = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
+    }
+
     // Client name for auto-naming the output file
     @Published var clientName: String = ""
 
