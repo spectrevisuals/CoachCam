@@ -56,6 +56,9 @@ final class RecordingSession: NSObject, ObservableObject {
         // the screen recording), so we must NOT also burn a PiP — otherwise the camera
         // shows up twice in the saved video.
         var cameraFloating = false
+        // Set once a writer append/finish failure is seen, so we log the underlying
+        // writer.error only once instead of on every subsequent dropped sample.
+        var loggedWriterFailure = false
     }
 
     private nonisolated func locked<T>(_ work: (inout CS) -> T) -> T {
@@ -63,10 +66,36 @@ final class RecordingSession: NSObject, ObservableObject {
         return work(&cs)
     }
 
+    /// True if the writer has entered a failed state. Logs the underlying error exactly once
+    /// (subsequent dropped samples stay quiet) so a mid-recording failure is visible without
+    /// spamming the log on every frame.
+    private nonisolated func writerDidFail() -> Bool {
+        guard let w = writer, w.status == .failed else { return false }
+        let shouldLog = locked { s -> Bool in
+            if s.loggedWriterFailure { return false }
+            s.loggedWriterFailure = true
+            return true
+        }
+        if shouldLog {
+            NSLog("ERROR: AVAssetWriter failed mid-recording: \(String(describing: w.error))")
+        }
+        return true
+    }
+
     // MARK: Infrastructure (main actor only)
     private var stream:     SCStream?
     private var micSession: AVCaptureSession?
     private var outputURL:  URL?
+
+    // Held for the whole recording so macOS won't sleep the display / nap the (often
+    // minimised) app mid-capture — either of which interrupts the SCStream and leaves a
+    // half-written, unplayable file. Ended on stop and on interruption.
+    private var sleepAssertion: NSObjectProtocol?
+
+    // finalizeWriter() runs at most once per recording; the outcome is cached so a stop()
+    // after an interruption-driven finalise returns the salvaged URL instead of re-running.
+    private var didFinalize  = false
+    private var finalizedURL: URL?
 
     private let vidQueue = DispatchQueue(label: "com.coachcap.vid",   qos: .userInteractive)
     private let audQueue = DispatchQueue(label: "com.coachcap.sysaud", qos: .userInteractive)
@@ -114,6 +143,8 @@ final class RecordingSession: NSObject, ObservableObject {
             recordingTimeRemaining = nil
         }
         cs = CS()   // reset state
+        didFinalize = false
+        finalizedURL = nil
         // Sync the burned-in mirror with the live setting. Without this the compositor keeps
         // its default (off) unless the user happens to toggle the mirror button, so the saved
         // video wouldn't mirror even though the preview (and the toggle) say it should.
@@ -207,6 +238,12 @@ final class RecordingSession: NSObject, ObservableObject {
 
         NSLog("DEBUG: Starting AVAssetWriter...")
         writer?.startWriting()
+        // Bail loudly if the writer never entered .writing — otherwise capture would run
+        // against a dead writer and silently produce an unplayable file.
+        if let w = writer, w.status != .writing {
+            NSLog("ERROR: AVAssetWriter failed to start — status \(w.status.rawValue): \(String(describing: w.error))")
+            throw w.error ?? CCError.writerSetupFailed
+        }
 
         NSLog("DEBUG: Calling sc.startCapture()...")
         do {
@@ -219,6 +256,13 @@ final class RecordingSession: NSObject, ObservableObject {
         }
 
         stream = sc
+
+        // Keep the display awake and the app off App Nap for the whole recording. A long
+        // check-in with the window minimised is exactly when macOS would otherwise sleep
+        // the display and interrupt the SCStream, leaving a half-written file.
+        sleepAssertion = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled, .idleDisplaySleepDisabled],
+            reason: "CoachCam recording in progress")
 
         isRunning = true
         isPaused  = false
@@ -270,7 +314,9 @@ final class RecordingSession: NSObject, ObservableObject {
     // MARK: - Stop
 
     func stop() async -> URL? {
-        guard isRunning else { return nil }
+        // Don't gate finalisation on isRunning: an interrupted stream
+        // (stream(_:didStopWithError:)) already flips isRunning to false, but the writer
+        // may still hold an un-finalised file we must close out.
         isRunning = false; isPaused = false
         freeTimerTask?.cancel()
         recordingTimeRemaining = nil
@@ -279,11 +325,58 @@ final class RecordingSession: NSObject, ObservableObject {
         micSession?.stopRunning()
         micSession = nil
 
-        return await withCheckedContinuation { cont in
-            writer?.finishWriting { [weak self] in
-                cont.resume(returning: self?.outputURL)
-            }
+        // Release the wake lock regardless of how finalisation goes.
+        if let token = sleepAssertion {
+            ProcessInfo.processInfo.endActivity(token)
+            sleepAssertion = nil
         }
+
+        return await finalizeWriter()
+    }
+
+    /// Finishes the asset writer and returns the output URL only if a valid, non-trivial
+    /// file landed on disk. On failure it logs the writer error, removes the broken stub so
+    /// it can't masquerade as a real recording, and returns nil so the UI can surface an error.
+    private func finalizeWriter() async -> URL? {
+        // Idempotent: an interrupted stream finalises here, and a follow-up stop() must
+        // return the same result instead of re-running finishWriting (which would delete
+        // the file we just salvaged).
+        if didFinalize { return finalizedURL }
+        didFinalize = true
+        let result = await performFinalize()
+        finalizedURL = result
+        return result
+    }
+
+    private func performFinalize() async -> URL? {
+        guard let w = writer else { return nil }
+        let url = outputURL
+
+        // If the writer already failed (e.g. the stream was interrupted), don't bother
+        // calling finishWriting — just clean up.
+        if w.status == .failed {
+            NSLog("ERROR: recording writer failed before stop: \(String(describing: w.error))")
+            if let url { try? FileManager.default.removeItem(at: url) }
+            return nil
+        }
+        // Nothing was ever written (no session started) — no usable file.
+        guard w.status == .writing else {
+            if let url { try? FileManager.default.removeItem(at: url) }
+            return nil
+        }
+
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            w.finishWriting { cont.resume() }
+        }
+
+        if w.status == .completed, let url,
+           let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > 1024 {
+            return url
+        }
+
+        NSLog("ERROR: recording did not finalize cleanly — status \(w.status.rawValue): \(String(describing: w.error))")
+        if let url { try? FileManager.default.removeItem(at: url) }
+        return nil
     }
 
     // MARK: - PiP live update (main actor)
@@ -367,9 +460,30 @@ final class RecordingSession: NSObject, ObservableObject {
 
 extension RecordingSession: SCStreamDelegate {
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
+        NSLog("ERROR: SCStream stopped with error: \(error.localizedDescription)")
         Task { @MainActor [weak self] in
-            self?.errorMessage = error.localizedDescription
-            self?.isRunning = false
+            guard let self else { return }
+            // Only react to an *unexpected* stop. A normal stop() already tore the stream
+            // down (isRunning == false) and is finalising the writer itself.
+            guard self.isRunning else { return }
+            self.isRunning = false
+            self.isPaused  = false
+            self.freeTimerTask?.cancel()
+            self.recordingTimeRemaining = nil
+            self.micSession?.stopRunning()
+            self.micSession = nil
+            self.stream = nil
+            if let token = self.sleepAssertion {
+                ProcessInfo.processInfo.endActivity(token)
+                self.sleepAssertion = nil
+            }
+            // Salvage whatever was captured into a playable file; null result means the
+            // partial couldn't be saved. The finalised URL is cached so a follow-up stop()
+            // returns it rather than re-finalising.
+            let salvaged = await self.finalizeWriter()
+            self.errorMessage = salvaged == nil
+                ? "recording was interrupted and couldn't be saved — \(error.localizedDescription)"
+                : "recording was interrupted — saved what was captured so far."
         }
     }
 }
@@ -389,6 +503,7 @@ extension RecordingSession: SCStreamOutput {
     }
 
     nonisolated private func handleVideoFrame(_ sample: CMSampleBuffer) {
+        guard !writerDidFail() else { return }
         guard let vi = vidInput, vi.isReadyForMoreMediaData else { return }
         let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
 
@@ -417,6 +532,7 @@ extension RecordingSession: SCStreamOutput {
     }
 
     nonisolated private func handleSysAudio(_ sample: CMSampleBuffer) {
+        guard !writerDidFail() else { return }
         guard let sa = sysAudInput, sa.isReadyForMoreMediaData else { return }
         let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
 
@@ -441,6 +557,7 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
     nonisolated func captureOutput(_ output: AVCaptureOutput,
                                     didOutput sample: CMSampleBuffer,
                                     from connection: AVCaptureConnection) {
+        guard !writerDidFail() else { return }
         guard let ma = micAudInput, ma.isReadyForMoreMediaData else { return }
         let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
 
@@ -477,7 +594,11 @@ private func retimed(_ sample: CMSampleBuffer, to newPTS: CMTime) -> CMSampleBuf
 
 enum CCError: LocalizedError {
     case noDisplay
+    case writerSetupFailed
     var errorDescription: String? {
-        switch self { case .noDisplay: return "No display found to record." }
+        switch self {
+        case .noDisplay:         return "No display found to record."
+        case .writerSetupFailed: return "Could not start the recording file. Please try again."
+        }
     }
 }

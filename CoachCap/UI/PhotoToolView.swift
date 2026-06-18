@@ -28,6 +28,7 @@ struct PhotoToolView: View {
     @State private var annotationImage:    NSImage? = nil
     @State private var showAnnotation      = false
     @ObservedObject private var licenseManager = LicenseManager.shared
+    @EnvironmentObject private var appState: AppState
 
     var body: some View {
         VStack(spacing: 0) {
@@ -125,6 +126,11 @@ struct PhotoToolView: View {
 
             Spacer()
 
+            // Auto-hide toggle — same setting as the recorder's, surfaced here so the coach
+            // can flip it without leaving the before/after screen. OFF keeps the window (and
+            // the photos being explained) on screen when recording over the float cam.
+            autoHideToggle
+
             // Mode toggle — shared segmented control
             BrandSegmented(selection: $viewMode, options: [
                 ("smart match", ViewMode.browse),
@@ -153,6 +159,28 @@ struct PhotoToolView: View {
         .padding(.vertical, 11)
         .background(Brand.bgElev)
         .overlay(Rectangle().fill(Brand.border).frame(height: 1), alignment: .bottom)
+    }
+
+    private var autoHideToggle: some View {
+        let active = appState.hideWindowWhileRecording
+        return Button {
+            // Don't change it mid-recording — the next recording reads the live value.
+            if !appState.isRecording { appState.hideWindowWhileRecording.toggle() }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "macwindow").font(.system(size: 12))
+                Text("auto-hide").font(Brand.font(12, active ? .semibold : .medium))
+            }
+            .foregroundStyle(active ? Brand.text : Brand.muted)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(active ? Brand.control : Color.clear))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Brand.controlBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(appState.isRecording)
+        .help("Minimise the CoachCam window when recording starts. Leave OFF while explaining before/after photos so they stay on screen; turn ON to talk over Google Sheets etc.")
     }
 
     // MARK: Main viewer (before | after, full height, zoomable)

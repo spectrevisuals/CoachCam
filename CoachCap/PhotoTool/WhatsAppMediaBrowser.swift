@@ -43,14 +43,32 @@ final class WhatsAppMediaLoader: ObservableObject {
 
     func loadContacts() async {
         let result = await Task.detached(priority: .userInitiated) { Self.queryContacts() }.value
-        if result == nil { unavailable = true }
-        contacts = result ?? []
+        if let result {
+            contacts = result
+            unavailable = false
+        } else if contacts.isEmpty {
+            // Only flag unavailable on a cold failure — a transient nil on a refresh
+            // (e.g. the DB briefly locked) shouldn't wipe an already-loaded list.
+            unavailable = true
+        }
         isLoadingContacts = false
     }
 
-    func loadPhotos(for contact: String, since: Date?) async {
-        isLoadingPhotos = true
-        currentPhotos = []
+    /// Re-queries the WhatsApp DB to pick up photos that have arrived since the app launched
+    /// (or since the last look). `loadContacts` refreshes the picker counts; the selected
+    /// contact's grid is reloaded quietly so it doesn't flash empty under the coach.
+    func refresh(selectedContact: String?, since: Date?) async {
+        await loadContacts()
+        if let contact = selectedContact {
+            await loadPhotos(for: contact, since: since, quiet: true)
+        }
+    }
+
+    func loadPhotos(for contact: String, since: Date?, quiet: Bool = false) async {
+        if !quiet {
+            isLoadingPhotos = true
+            currentPhotos = []
+        }
         let items = await Task.detached(priority: .userInitiated) {
             let rows = Self.queryPhotos(contact: contact, since: since)
             // WhatsApp delivers HD photos as a second message (a higher-res copy of
@@ -74,8 +92,11 @@ final class WhatsAppMediaLoader: ObservableObject {
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_close(db) }
 
+        // Only clients who've sent at least one photo (the join + LIKE filter), but ordered
+        // by the chat's most recent message of ANY kind (ZLASTMESSAGEDATE) so the list
+        // mirrors WhatsApp's own chat order — whoever you last spoke to is at the top.
         let sql = """
-            SELECT cs.ZPARTNERNAME, COUNT(*) as cnt, MAX(m.ZMESSAGEDATE)
+            SELECT cs.ZPARTNERNAME, COUNT(*) as cnt, MAX(cs.ZLASTMESSAGEDATE)
             FROM ZWAMESSAGE m
             JOIN ZWAMEDIAITEM mi ON mi.ZMESSAGE = m.Z_PK
             JOIN ZWACHATSESSION cs ON cs.Z_PK = m.ZCHATSESSION
@@ -84,7 +105,7 @@ final class WhatsAppMediaLoader: ObservableObject {
               AND m.ZISFROMME = 0
               AND cs.ZPARTNERNAME IS NOT NULL
             GROUP BY cs.ZPARTNERNAME
-            ORDER BY MAX(m.ZMESSAGEDATE) DESC
+            ORDER BY MAX(cs.ZLASTMESSAGEDATE) DESC
             """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
@@ -277,6 +298,11 @@ struct WhatsAppMediaBrowser: View {
             Divider()
             photoArea
         }
+        // New check-in photos land in WhatsApp while CoachCam stays open. Re-query whenever
+        // the coach switches back to the app, so fresh photos appear without a relaunch.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await loader.refresh(selectedContact: selectedContact, since: dateRange.cutoffDate) }
+        }
     }
 
     // MARK: Filter bar
@@ -325,6 +351,16 @@ struct WhatsAppMediaBrowser: View {
                 Text("\(loader.currentPhotos.count) photo\(loader.currentPhotos.count == 1 ? "" : "s")")
                     .foregroundColor(.secondary).font(.caption)
             }
+
+            // Manual re-query — picks up photos that arrived since the list last loaded.
+            Button {
+                Task { await loader.refresh(selectedContact: selectedContact, since: dateRange.cutoffDate) }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .disabled(loader.unavailable || loader.isLoadingContacts)
+            .help("Refresh — check WhatsApp for new photos")
 
             Spacer()
         }

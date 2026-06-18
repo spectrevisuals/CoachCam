@@ -29,7 +29,9 @@ final class DateCompareLoader: ObservableObject {
 
     func loadContacts() async {
         let result = await Task.detached { WhatsAppMediaLoader.queryContacts() }.value
-        contacts = result ?? []
+        // Keep the existing list on a transient nil (e.g. DB briefly locked during a
+        // refresh) rather than blanking the picker.
+        if let result { contacts = result }
         isLoadingContacts = false
     }
 
@@ -192,6 +194,8 @@ struct BrowseView: View {
     @State private var aiMatchIdx   = 0
     @State private var aiLoading    = false
     @State private var aiError:     String? = nil
+    // Bumped to tell the two panels to re-query WhatsApp for newly-arrived photos.
+    @State private var refreshToken = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -209,6 +213,13 @@ struct BrowseView: View {
                     .labelsHidden().frame(width: 240)
                     .onChange(of: selectedContact) { _, c in appState.whatsAppClientName = c }
                 }
+
+                // Re-query WhatsApp for photos that arrived since this screen loaded, so the
+                // coach doesn't have to quit and relaunch when a new check-in comes through.
+                Button(action: refresh) { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.plain)
+                    .disabled(contactLoader.isLoadingContacts)
+                    .help("Refresh — check WhatsApp for new photos")
 
                 Divider().frame(height: 20)
 
@@ -282,11 +293,13 @@ struct BrowseView: View {
 
             HStack(spacing: 0) {
                 BrowsePanelView(contact: selectedContact,
+                                refreshToken: refreshToken,
                                 index: linked ? $linkedIndex : $leftIndex,
                                 photoCount: $leftCount,
                                 photos: $leftPhotos)
                 Rectangle().fill(Color.white.opacity(0.2)).frame(width: 2)
                 BrowsePanelView(contact: selectedContact,
+                                refreshToken: refreshToken,
                                 index: linked ? $linkedIndex : $rightIndex,
                                 photoCount: $rightCount,
                                 photos: $rightPhotos)
@@ -296,6 +309,17 @@ struct BrowseView: View {
         }
         .onAppear  { startKeyMonitor() }
         .onDisappear { stopKeyMonitor() }
+        // New check-in photos land in WhatsApp while CoachCam stays open. Re-query whenever
+        // the coach switches back to the app, so they appear without a relaunch.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refresh()
+        }
+    }
+
+    /// Reloads the contact list and signals both photo panels to re-query for new photos.
+    private func refresh() {
+        Task { await contactLoader.loadContacts() }
+        refreshToken &+= 1
     }
 
     private func runAIMatch(leftURLs: [URL], rightURLs: [URL]) {
@@ -377,6 +401,7 @@ struct BrowseView: View {
 
 private struct BrowsePanelView: View {
     let contact: String?
+    var refreshToken: Int = 0
     @Binding var index: Int
     @Binding var photoCount: Int
     @Binding var photos: [WhatsAppMediaItem]
@@ -409,6 +434,19 @@ private struct BrowsePanelView: View {
             photoCount = count
             photos     = currentPhotos
             if index >= count { index = max(0, count - 1) }
+        }
+        .onChange(of: refreshToken) { _, _ in
+            guard let c = contact else { return }
+            // Re-query: refresh the date list (new check-ins appear as new dates) and reload
+            // the currently-open date so extra photos on it show up. Keep the open date if it
+            // still exists.
+            let keepDate = dateKey
+            Task {
+                await loader.loadDates(for: c)
+                if let keepDate, loader.dates.contains(where: { $0.key == keepDate }) {
+                    await loader.loadSide(.left, contact: c, dateKey: keepDate)
+                }
+            }
         }
     }
 

@@ -636,10 +636,19 @@ struct RecordingView: View {
         // isRunning observer, but do it here too so it's immediate and guaranteed).
         restoreMainWindow()
         Task {
-            // session.stop() awaits finishWriting, so `url` points to a fully-written file.
+            // session.stop() awaits finalisation and returns nil if the file couldn't be
+            // saved as a valid, playable recording (e.g. the capture was interrupted).
             let url = await session.stop()
             appState.lastSavedURL = url
             appState.isSaving = false
+            guard url != nil else {
+                // Nothing usable on disk — tell the coach plainly instead of showing a
+                // "send to whatsapp" banner that points at a broken/missing file.
+                if appState.errorMessage == nil {
+                    appState.errorMessage = "recording failed to save — please try again."
+                }
+                return
+            }
             // "Done" chime once the file is fully written — after capture has ended, so it's
             // never part of the recording.
             if appState.soundEffectsEnabled { AppSounds.shared.playStop() }
