@@ -309,14 +309,18 @@ struct BrowseView: View {
         }
         .onAppear  { startKeyMonitor() }
         .onDisappear { stopKeyMonitor() }
-        // New check-in photos land in WhatsApp while CoachCam stays open. Re-query whenever
-        // the coach switches back to the app, so they appear without a relaunch.
+        // New check-in photos land in WhatsApp while CoachCam stays open. On returning to the
+        // app, refresh ONLY the contact list (counts) — NOT the photo panels. The coach tabs
+        // to WhatsApp and back constantly; reloading the panels here would wipe an in-progress
+        // AI match and flash the photos. New photos for the open client are pulled with the
+        // explicit refresh button.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            refresh()
+            Task { await contactLoader.loadContacts() }
         }
     }
 
-    /// Reloads the contact list and signals both photo panels to re-query for new photos.
+    /// Manual refresh: reloads the contact list and signals both photo panels to re-query.
+    /// This DOES reset an in-progress AI match — it's only triggered by the explicit button.
     private func refresh() {
         Task { await contactLoader.loadContacts() }
         refreshToken &+= 1

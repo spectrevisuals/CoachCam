@@ -670,7 +670,13 @@ struct RecordingView: View {
     /// (and the live recording) alive, and leaves a Dock thumbnail to click back to.
     /// Skipped in webcam-only mode, where the window itself is what's being recorded.
     private func hideMainWindowForRecording() {
-        guard appState.hideWindowWhileRecording, !appState.webcamOnlyMode else { return }
+        // Recording started from the before/after screen uses that screen's own auto-hide
+        // setting (defaults off, so the photos stay on view); everywhere else uses the
+        // recorder's setting (defaults on).
+        let shouldHide = appState.activeTab == .photoTool
+            ? appState.hideWindowWhileRecordingBeforeAfter
+            : appState.hideWindowWhileRecording
+        guard shouldHide, !appState.webcamOnlyMode else { return }
         if let win = mainWindow() {
             recordingWindow = win
             win.miniaturize(nil)

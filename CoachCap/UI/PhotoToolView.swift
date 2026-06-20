@@ -162,10 +162,11 @@ struct PhotoToolView: View {
     }
 
     private var autoHideToggle: some View {
-        let active = appState.hideWindowWhileRecording
+        let active = appState.hideWindowWhileRecordingBeforeAfter
         return Button {
             // Don't change it mid-recording — the next recording reads the live value.
-            if !appState.isRecording { appState.hideWindowWhileRecording.toggle() }
+            // This is the before/after screen's own auto-hide setting (defaults off).
+            if !appState.isRecording { appState.hideWindowWhileRecordingBeforeAfter.toggle() }
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "macwindow").font(.system(size: 12))

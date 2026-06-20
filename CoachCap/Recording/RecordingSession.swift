@@ -331,7 +331,12 @@ final class RecordingSession: NSObject, ObservableObject {
             sleepAssertion = nil
         }
 
-        return await finalizeWriter()
+        guard let url = await finalizeWriter() else { return nil }
+        // Merge the system-audio + mic tracks into one so the clip isn't silent in WhatsApp
+        // (which plays only the first audio track). No-ops if there's a single track; on
+        // failure it returns the original file. Safe to call again — a single-track file is
+        // left untouched.
+        return await ExportManager.flattenAudioTracks(inputURL: url)
     }
 
     /// Finishes the asset writer and returns the output URL only if a valid, non-trivial

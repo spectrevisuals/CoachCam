@@ -32,11 +32,18 @@ final class AppState: ObservableObject {
 
     // Auto-hide: minimise the main window while recording. Lives here (not @AppStorage in
     // the view) so the float cam's captured closures always read the live value. Persisted.
-    // Defaults OFF: the before/after workflow records the CoachCam window itself, so
-    // auto-minimising would hide the very thing being shown. Coaches who talk over Google
-    // Sheets can switch it on; the choice persists.
-    @Published var hideWindowWhileRecording: Bool = UserDefaults.standard.object(forKey: "hideWindowWhileRecording") as? Bool ?? false {
+    //
+    // Two independent settings because the two workflows want opposite defaults:
+    //  • Recorder screen: defaults ON — you're recording your screen (Google Sheets etc.),
+    //    so getting the CoachCam window out of the way is what you want.
+    //  • Before/after screen: defaults OFF — you're recording the CoachCam window itself
+    //    (explaining the photos), so minimising would hide the very thing being shown.
+    // hideMainWindowForRecording() picks the right one based on the active screen.
+    @Published var hideWindowWhileRecording: Bool = UserDefaults.standard.object(forKey: "hideWindowWhileRecording") as? Bool ?? true {
         didSet { UserDefaults.standard.set(hideWindowWhileRecording, forKey: "hideWindowWhileRecording") }
+    }
+    @Published var hideWindowWhileRecordingBeforeAfter: Bool = UserDefaults.standard.object(forKey: "hideWindowWhileRecordingBeforeAfter") as? Bool ?? false {
+        didSet { UserDefaults.standard.set(hideWindowWhileRecordingBeforeAfter, forKey: "hideWindowWhileRecordingBeforeAfter") }
     }
 
     // Float cam circle diameter (points). Cycled S/M/L from the float cam; remembered.
