@@ -69,7 +69,14 @@ struct RecordingView: View {
         // bring the main window back to the front so the "send to whatsapp" banner is
         // immediately reachable (and so an auto-hidden window can't get stranded).
         .onChange(of: session.isRunning) { _, running in
-            if !running { restoreMainWindow() }
+            if !running {
+                restoreMainWindow()
+                // Recording ended WITHOUT the coach pressing stop (writer died mid-recording,
+                // the stream was interrupted, or the free-tier timer fired). The normal stop
+                // path clears isRecording first, so this only runs for an unexpected stop —
+                // ending the session and surfacing the salvaged clip + reason right away.
+                if appState.isRecording { handleUnexpectedStop() }
+            }
         }
         // Keep the on-screen custom-area outline in sync with the selection.
         .onChange(of: appState.customArea) { _, _ in refreshAreaIndicator() }
@@ -642,17 +649,50 @@ struct RecordingView: View {
             appState.lastSavedURL = url
             appState.isSaving = false
             guard url != nil else {
-                // Nothing usable on disk — tell the coach plainly instead of showing a
-                // "send to whatsapp" banner that points at a broken/missing file.
-                if appState.errorMessage == nil {
-                    appState.errorMessage = "recording failed to save — please try again."
-                }
+                // Nothing usable on disk — show the ACTUAL reason (e.g. out of disk space)
+                // so the coach can act, not a generic "try again". The partial is preserved
+                // as a .unfinished.mp4 next to the recording and logged to
+                // ~/Movies/CoachCap/CoachCam-error-log.txt.
+                appState.errorMessage = session.lastSaveError
+                    .map { "Recording didn't save: \($0)" }
+                    ?? "Recording failed to save — please try again."
                 return
+            }
+            // Saved — but if it was cut short, tell the coach it's a partial clip (it's still
+            // a normal, sendable file; they can record the rest as a second clip).
+            if let note = session.lastSavePartialNote {
+                appState.errorMessage = note
             }
             // "Done" chime once the file is fully written — after capture has ended, so it's
             // never part of the recording.
             if appState.soundEffectsEnabled { AppSounds.shared.playStop() }
             // Persist the banner — it holds the "send to whatsapp" action — until dismissed.
+            withAnimation { showSavedBanner = true }
+        }
+    }
+
+    /// Handles a recording that ended on its own (writer failure mid-record, stream
+    /// interruption, free-tier timeout). The session has already finalised, so we read its
+    /// result and present it: the salvaged clip as a sendable banner if there's anything
+    /// usable, plus the reason. Mirrors the tail of stopAndSave().
+    private func handleUnexpectedStop() {
+        appState.isRecording = false
+        appState.stopTimer()
+        appState.isSaving = false
+        appState.activeTab = .recorder
+        let url = session.finalizedURL
+        appState.lastSavedURL = url
+        if url == nil {
+            if appState.errorMessage == nil {
+                appState.errorMessage = session.lastSaveError.map { "Recording stopped: \($0)" }
+                    ?? "Recording stopped unexpectedly — please try again."
+            }
+        } else {
+            // Keep any reason already set (e.g. free-tier cap); otherwise show the partial note.
+            if appState.errorMessage == nil, let note = session.lastSavePartialNote {
+                appState.errorMessage = note
+            }
+            if appState.soundEffectsEnabled { AppSounds.shared.playStop() }
             withAnimation { showSavedBanner = true }
         }
     }

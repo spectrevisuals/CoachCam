@@ -78,8 +78,38 @@ final class RecordingSession: NSObject, ObservableObject {
         }
         if shouldLog {
             NSLog("ERROR: AVAssetWriter failed mid-recording: \(String(describing: w.error))")
+            // Stop and alert NOW, at the moment of failure — don't let the coach keep filming
+            // against a dead writer and only discover at the end that little was captured.
+            Task { @MainActor [weak self] in await self?.endUnexpectedly() }
         }
         return true
+    }
+
+    /// Shared capture teardown. Does NOT touch `isRunning` — each caller decides when to flip
+    /// it (the user path flips immediately for snappy UI; unexpected-stop paths flip last, so
+    /// the finalized result is ready when RecordingView reacts).
+    private func teardownCapture() async {
+        isPaused = false
+        freeTimerTask?.cancel()
+        recordingTimeRemaining = nil
+        try? await stream?.stopCapture()
+        stream = nil
+        micSession?.stopRunning()
+        micSession = nil
+        if let token = sleepAssertion {
+            ProcessInfo.processInfo.endActivity(token)
+            sleepAssertion = nil
+        }
+    }
+
+    /// Ends a recording that stopped on its own (writer failure, stream interruption, free-tier
+    /// timeout): tears down, salvages whatever was filmed, THEN flips `isRunning` so
+    /// RecordingView reads the finalized clip + reason and ends the session immediately.
+    private func endUnexpectedly() async {
+        guard isRunning else { return }
+        await teardownCapture()
+        _ = await finalizeWriter()
+        isRunning = false
     }
 
     // MARK: Infrastructure (main actor only)
@@ -95,7 +125,16 @@ final class RecordingSession: NSObject, ObservableObject {
     // finalizeWriter() runs at most once per recording; the outcome is cached so a stop()
     // after an interruption-driven finalise returns the salvaged URL instead of re-running.
     private var didFinalize  = false
-    private var finalizedURL: URL?
+    private(set) var finalizedURL: URL?
+
+    // Human-readable reason the last save failed (e.g. "Not enough disk space"), so the UI
+    // can show the actual cause instead of a generic "try again". nil when the last save
+    // succeeded. Read by RecordingView after stop() returns nil.
+    private(set) var lastSaveError: String?
+
+    // Set when a recording was saved but cut short (salvaged partial) — the coach kept a clip
+    // but should know it stopped early and why. nil for a clean full recording.
+    private(set) var lastSavePartialNote: String?
 
     private let vidQueue = DispatchQueue(label: "com.coachcap.vid",   qos: .userInteractive)
     private let audQueue = DispatchQueue(label: "com.coachcap.sysaud", qos: .userInteractive)
@@ -145,6 +184,8 @@ final class RecordingSession: NSObject, ObservableObject {
         cs = CS()   // reset state
         didFinalize = false
         finalizedURL = nil
+        lastSaveError = nil
+        lastSavePartialNote = nil
         // Sync the burned-in mirror with the live setting. Without this the compositor keeps
         // its default (off) unless the user happens to toggle the mirror button, so the saved
         // video wouldn't mirror even though the preview (and the toggle) say it should.
@@ -266,6 +307,13 @@ final class RecordingSession: NSObject, ObservableObject {
 
         isRunning = true
         isPaused  = false
+        // Note any active camera video-effects (Reactions/Portrait/etc.) — they can't be
+        // disabled programmatically but can destabilise capture, so record them for triage.
+        let fx = camera.activeCameraEffects()
+        if !fx.isEmpty {
+            NSLog("WARN: recording started with active camera effects: \(fx.joined(separator: ", "))")
+            Self.appendErrorLog("recording started with active camera effects: \(fx.joined(separator: ", "))")
+        }
         NSLog("DEBUG: Recording started successfully")
     }
 
@@ -303,10 +351,11 @@ final class RecordingSession: NSObject, ObservableObject {
                 recordingTimeRemaining = second
                 try? await Task.sleep(for: .seconds(1))
             }
-            // Time's up — auto stop with a clear message.
+            // Time's up — auto stop with a clear message. Set the message first so the
+            // unexpected-stop handler keeps it (it only fills a blank message).
             if isRunning {
-                _ = await stop()
                 errorMessage = "free recordings are capped at \(cap / 60) minutes — upgrade for unlimited"
+                await endUnexpectedly()
             }
         }
     }
@@ -314,29 +363,12 @@ final class RecordingSession: NSObject, ObservableObject {
     // MARK: - Stop
 
     func stop() async -> URL? {
-        // Don't gate finalisation on isRunning: an interrupted stream
-        // (stream(_:didStopWithError:)) already flips isRunning to false, but the writer
-        // may still hold an un-finalised file we must close out.
-        isRunning = false; isPaused = false
-        freeTimerTask?.cancel()
-        recordingTimeRemaining = nil
-        try? await stream?.stopCapture()
-        stream = nil
-        micSession?.stopRunning()
-        micSession = nil
-
-        // Release the wake lock regardless of how finalisation goes.
-        if let token = sleepAssertion {
-            ProcessInfo.processInfo.endActivity(token)
-            sleepAssertion = nil
-        }
-
-        guard let url = await finalizeWriter() else { return nil }
-        // Merge the system-audio + mic tracks into one so the clip isn't silent in WhatsApp
-        // (which plays only the first audio track). No-ops if there's a single track; on
-        // failure it returns the original file. Safe to call again — a single-track file is
-        // left untouched.
-        return await ExportManager.flattenAudioTracks(inputURL: url)
+        // User-initiated stop: flip isRunning immediately for snappy UI (the saved/saving
+        // state is driven by RecordingView, which already set isRecording=false, so the
+        // unexpected-stop handler won't double-fire), then tear down and finalise.
+        isRunning = false
+        await teardownCapture()
+        return await finalizeWriter()
     }
 
     /// Finishes the asset writer and returns the output URL only if a valid, non-trivial
@@ -348,40 +380,149 @@ final class RecordingSession: NSObject, ObservableObject {
         // the file we just salvaged).
         if didFinalize { return finalizedURL }
         didFinalize = true
-        let result = await performFinalize()
+        var result = await performFinalize()
+        // Merge system-audio + mic into one track so the clip isn't silent in WhatsApp (which
+        // plays only the first audio track). Also cleans up a fragmented partial into a normal
+        // mp4. No-ops on a single-track file; returns the original on failure. Done here (not
+        // in stop()) so EVERY exit — user stop, writer failure, interruption — yields a single,
+        // sendable, fully-finalised file.
+        if let raw = result {
+            result = await ExportManager.flattenAudioTracks(inputURL: raw)
+        }
         finalizedURL = result
         return result
     }
 
     private func performFinalize() async -> URL? {
-        guard let w = writer else { return nil }
-        let url = outputURL
-
-        // If the writer already failed (e.g. the stream was interrupted), don't bother
-        // calling finishWriting — just clean up.
-        if w.status == .failed {
-            NSLog("ERROR: recording writer failed before stop: \(String(describing: w.error))")
-            if let url { try? FileManager.default.removeItem(at: url) }
-            return nil
-        }
-        // Nothing was ever written (no session started) — no usable file.
-        guard w.status == .writing else {
-            if let url { try? FileManager.default.removeItem(at: url) }
+        guard let w = writer, let url = outputURL else {
+            fail(reason: "The recorder never started.", url: outputURL, error: nil)
             return nil
         }
 
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            w.finishWriting { cont.resume() }
+        // Only finishWriting if still writing; a failed writer can't be finished, but its
+        // fragmented file on disk may still hold a playable partial we can salvage.
+        if w.status == .writing {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                w.finishWriting { cont.resume() }
+            }
         }
 
-        if w.status == .completed, let url,
+        // Clean, fully-finalised recording.
+        if w.status == .completed,
            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > 1024 {
+            lastSaveError = nil
+            lastSavePartialNote = nil
             return url
         }
 
-        NSLog("ERROR: recording did not finalize cleanly — status \(w.status.rawValue): \(String(describing: w.error))")
-        if let url { try? FileManager.default.removeItem(at: url) }
+        // Not clean — but because we record in fragments, the file on disk is usually playable
+        // up to the last fragment. Salvage it as a partial clip instead of losing everything.
+        let reason = describeWriterError(w.error)
+        if let secs = await usablePartialDuration(url) {
+            lastSaveError = nil
+            lastSavePartialNote = "Recording didn't finish cleanly — \(reason) Recovered the \(Self.durationString(secs)) that was filmed."
+            NSLog("WARN: recording salvaged as partial (\(Self.durationString(secs))) — \(reason)")
+            Self.appendErrorLog("salvaged partial (\(Self.durationString(secs))) — \(reason)")
+            return url   // stop()'s remux/flatten turns the fragmented partial into a clean clip
+        }
+
+        // Nothing usable on disk.
+        fail(reason: reason, url: url, error: w.error)
         return nil
+    }
+
+    /// Returns the duration (seconds) of the file if it's a usable partial — i.e. it has a
+    /// video track and at least ~1s of content. nil if there's nothing worth keeping.
+    private func usablePartialDuration(_ url: URL) async -> Double? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let asset = AVURLAsset(url: url)
+        guard let dur = try? await asset.load(.duration) else { return nil }
+        let secs = CMTimeGetSeconds(dur)
+        guard secs.isFinite, secs >= 1 else { return nil }
+        let videos = (try? await asset.loadTracks(withMediaType: .video)) ?? []
+        return videos.isEmpty ? nil : secs
+    }
+
+    static func durationString(_ secs: Double) -> String {
+        let s = Int(secs.rounded())
+        return s >= 60 ? "\(s / 60)m \(s % 60)s" : "\(s)s"
+    }
+
+    /// Records a save failure: builds a clear reason (with free-disk-space context), sets
+    /// `lastSaveError` for the UI, appends it to a findable log file the coach can send, and
+    /// PRESERVES the partial file (renamed `.unfinished.mp4`) instead of deleting it — so a
+    /// lost check-in has at least a chance of recovery and we can inspect what went wrong.
+    private func fail(reason: String, url: URL?, error: Error?) {
+        let free = freeDiskSpaceString()
+        let full = "\(reason) (Free disk space: \(free).)"
+        lastSaveError = full
+        NSLog("ERROR: recording failed to save — \(full) — writer.error=\(String(describing: error))")
+        Self.appendErrorLog("save failed — \(full) | writer.error=\(String(describing: error))")
+
+        // Preserve the partial: rename to .unfinished.mp4 so it doesn't masquerade as a good
+        // recording but is still there for recovery/inspection.
+        if let url, FileManager.default.fileExists(atPath: url.path) {
+            let kept = url.deletingPathExtension().appendingPathExtension("unfinished.mp4")
+            try? FileManager.default.removeItem(at: kept)
+            try? FileManager.default.moveItem(at: url, to: kept)
+        }
+    }
+
+    /// Turns an AVAssetWriter error into a coach-friendly sentence, flagging the disk-full
+    /// case specifically. Digs into the underlying error too: AVAssetWriter usually reports a
+    /// generic AVErrorUnknown (-11800) and hides the real cause (e.g. a CoreMedia sample-timing
+    /// error like -12737) under NSUnderlyingErrorKey — we surface both so failures are
+    /// diagnosable from the in-app message / log without Console.
+    private func describeWriterError(_ error: Error?) -> String {
+        guard let e = error as NSError? else { return "The recording couldn't be finalized." }
+        let underlying = e.userInfo[NSUnderlyingErrorKey] as? NSError
+        let diskFull = isDiskFull(e) || underlying.map(isDiskFull) == true
+        if diskFull { return "Your Mac ran out of disk space while saving." }
+        var msg = "The recording couldn't be finalized (\(e.localizedDescription)) [\(e.domain) \(e.code)"
+        if let u = underlying { msg += " / underlying \(u.domain) \(u.code)" }
+        msg += "]."
+        return msg
+    }
+
+    private func isDiskFull(_ e: NSError) -> Bool {
+        (e.domain == NSPOSIXErrorDomain && e.code == 28)            // ENOSPC
+            || (e.domain == NSCocoaErrorDomain && e.code == 640)    // NSFileWriteOutOfSpaceError
+            || (e.domain == AVFoundationErrorDomain && e.code == -11807)  // AVError.diskFull
+            || e.localizedDescription.lowercased().contains("disk")
+    }
+
+    /// Free space on the recording's volume, human-readable (e.g. "1.2 GB").
+    private func freeDiskSpaceString() -> String {
+        let probe = outputURL ?? (try? FileManager.default.url(for: .moviesDirectory, in: .userDomainMask,
+                                                               appropriateFor: nil, create: false))
+        if let probe,
+           let vals = try? probe.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+           let bytes = vals.volumeAvailableCapacityForImportantUsage {
+            return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        }
+        return "unknown"
+    }
+
+    /// Appends a timestamped line to ~/Movies/CoachCap/CoachCam-error-log.txt so the coach can
+    /// find and send it without using Terminal.
+    nonisolated static func appendErrorLog(_ message: String) {
+        guard let dir = try? FileManager.default.url(for: .moviesDirectory, in: .userDomainMask,
+                                                     appropriateFor: nil, create: false)
+            .appendingPathComponent("CoachCap", isDirectory: true) else { return }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let logURL = dir.appendingPathComponent("CoachCam-error-log.txt")
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let line = "[\(stamp)] v\(ver): \(message)\n"
+        if let data = line.data(using: .utf8) {
+            if let handle = try? FileHandle(forWritingTo: logURL) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            } else {
+                try? data.write(to: logURL)
+            }
+        }
     }
 
     // MARK: - PiP live update (main actor)
@@ -404,6 +545,10 @@ final class RecordingSession: NSObject, ObservableObject {
 
     private func setupWriter(config: RecordingConfig) throws {
         let w = try AVAssetWriter(outputURL: config.outputURL, fileType: .mp4)
+        // Write the movie in periodic fragments. This makes the file on disk playable up to
+        // the last fragment even if the writer dies mid-recording or the app is killed — so a
+        // failed/interrupted check-in can be salvaged into a clip instead of lost entirely.
+        w.movieFragmentInterval = CMTime(value: 5, timescale: 1)   // flush every ~5s
 
         let videoSettings: [String: Any] = [
             AVVideoCodecKey:  AVVideoCodecType.h264,
@@ -467,28 +612,10 @@ extension RecordingSession: SCStreamDelegate {
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
         NSLog("ERROR: SCStream stopped with error: \(error.localizedDescription)")
         Task { @MainActor [weak self] in
-            guard let self else { return }
-            // Only react to an *unexpected* stop. A normal stop() already tore the stream
-            // down (isRunning == false) and is finalising the writer itself.
-            guard self.isRunning else { return }
-            self.isRunning = false
-            self.isPaused  = false
-            self.freeTimerTask?.cancel()
-            self.recordingTimeRemaining = nil
-            self.micSession?.stopRunning()
-            self.micSession = nil
-            self.stream = nil
-            if let token = self.sleepAssertion {
-                ProcessInfo.processInfo.endActivity(token)
-                self.sleepAssertion = nil
-            }
-            // Salvage whatever was captured into a playable file; null result means the
-            // partial couldn't be saved. The finalised URL is cached so a follow-up stop()
-            // returns it rather than re-finalising.
-            let salvaged = await self.finalizeWriter()
-            self.errorMessage = salvaged == nil
-                ? "recording was interrupted and couldn't be saved — \(error.localizedDescription)"
-                : "recording was interrupted — saved what was captured so far."
+            // Only react to an *unexpected* stop. A normal user stop() already flipped
+            // isRunning to false and is finalising itself. endUnexpectedly() salvages what was
+            // filmed and surfaces it via RecordingView's unexpected-stop handler.
+            await self?.endUnexpectedly()
         }
     }
 }
@@ -583,17 +710,44 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
 
 // MARK: - Helpers
 
+/// Shifts an audio buffer onto the recording timeline while PRESERVING its real per-sample
+/// timing. The previous version collapsed every buffer to a single timing entry whose
+/// duration was the buffer's TOTAL duration — for a multi-sample audio buffer that's
+/// malformed timing (the per-entry duration is meant to be one sample's length), and it can
+/// make AVAssetWriter fail at finishWriting with CoreMedia timing errors (-12736/-12737),
+/// losing the whole recording. Here we copy the original timing array and add a constant
+/// offset so the first sample lands at `newPTS`, keeping durations and spacing intact.
 private func retimed(_ sample: CMSampleBuffer, to newPTS: CMTime) -> CMSampleBuffer? {
-    var timing = CMSampleTimingInfo(
-        duration: CMSampleBufferGetDuration(sample),
-        presentationTimeStamp: newPTS,
-        decodeTimeStamp: .invalid
-    )
+    var count: CMItemCount = 0
+    CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
+
+    if count <= 0 {
+        // No timing array — fall back to a single entry with the PER-SAMPLE duration.
+        let n = max(1, CMSampleBufferGetNumSamples(sample))
+        let total = CMSampleBufferGetDuration(sample)
+        let per = (total.isValid && total.value > 0)
+            ? CMTimeMultiplyByRatio(total, multiplier: 1, divisor: Int32(n))
+            : CMTime.invalid
+        var timing = CMSampleTimingInfo(duration: per, presentationTimeStamp: newPTS, decodeTimeStamp: .invalid)
+        var out: CMSampleBuffer?
+        CMSampleBufferCreateCopyWithNewTiming(allocator: nil, sampleBuffer: sample,
+            sampleTimingEntryCount: 1, sampleTimingArray: &timing, sampleBufferOut: &out)
+        return out
+    }
+
+    var timings = [CMSampleTimingInfo](repeating: CMSampleTimingInfo(), count: count)
+    CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: count, arrayToFill: &timings, entriesNeededOut: nil)
+    let originalFirst = timings.first?.presentationTimeStamp ?? CMSampleBufferGetPresentationTimeStamp(sample)
+    let delta = CMTimeSubtract(newPTS, originalFirst)
+    for i in timings.indices {
+        if timings[i].presentationTimeStamp.isValid {
+            timings[i].presentationTimeStamp = CMTimeAdd(timings[i].presentationTimeStamp, delta)
+        }
+        timings[i].decodeTimeStamp = .invalid
+    }
     var out: CMSampleBuffer?
-    CMSampleBufferCreateCopyWithNewTiming(
-        allocator: nil, sampleBuffer: sample,
-        sampleTimingEntryCount: 1, sampleTimingArray: &timing,
-        sampleBufferOut: &out)
+    CMSampleBufferCreateCopyWithNewTiming(allocator: nil, sampleBuffer: sample,
+        sampleTimingEntryCount: count, sampleTimingArray: &timings, sampleBufferOut: &out)
     return out
 }
 

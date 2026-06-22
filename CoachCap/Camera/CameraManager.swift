@@ -36,6 +36,10 @@ final class CameraManager: NSObject, ObservableObject {
     private var activeObserver: NSObjectProtocol?
     private var lastCameraID: String?
 
+    /// The camera device currently feeding the session — used to read its active video-effect
+    /// state for diagnostics.
+    private(set) var activeCameraDevice: AVCaptureDevice?
+
     override init() {
         super.init()
         NSLog("DEBUG CameraManager: init called")
@@ -152,6 +156,7 @@ final class CameraManager: NSObject, ObservableObject {
         session.sessionPreset = .hd1280x720
 
         let camera = resolveCamera(id: cameraID)
+        activeCameraDevice = camera
         NSLog("DEBUG CameraManager: Resolved camera: \(camera?.localizedName ?? "nil")")
 
         if let cam = camera {
@@ -207,6 +212,20 @@ final class CameraManager: NSObject, ObservableObject {
     nonisolated func latestBuffer() -> CVPixelBuffer? {
         bufferLock.lock(); defer { bufferLock.unlock() }
         return _latestBuffer
+    }
+
+    /// Names of macOS camera video-effects currently active on the selected camera. These are
+    /// user-controlled (Control Center) and Apple doesn't allow apps to disable them, so we
+    /// only read them — for diagnostics, since this pipeline (Reactions/Portrait especially)
+    /// can destabilise capture on some Macs. Read-only properties: no exception risk.
+    func activeCameraEffects() -> [String] {
+        guard let dev = activeCameraDevice else { return [] }
+        var fx: [String] = []
+        if dev.isPortraitEffectActive { fx.append("Portrait") }
+        if dev.isStudioLightActive    { fx.append("Studio Light") }
+        if dev.isCenterStageActive    { fx.append("Center Stage") }
+        if AVCaptureDevice.reactionEffectsEnabled { fx.append("Reactions") }
+        return fx
     }
 
     private func resolveCamera(id: String?) -> AVCaptureDevice? {

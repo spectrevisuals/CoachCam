@@ -15,6 +15,14 @@ struct DateGroup: Identifiable {
 // MARK: - Loader
 
 @MainActor
+/// True when a text field currently has keyboard focus, so the photo-scrubbing key monitors
+/// can let A/D/arrow keystrokes through to the field (e.g. the client search box) instead of
+/// moving photos.
+func isTextInputFocused() -> Bool {
+    guard let responder = NSApp.keyWindow?.firstResponder else { return false }
+    return responder is NSText || responder is NSTextView
+}
+
 final class DateCompareLoader: ObservableObject {
     @Published var contacts:        [WAContact]           = []
     @Published var selectedContact: String?               = nil
@@ -196,6 +204,19 @@ struct BrowseView: View {
     @State private var aiError:     String? = nil
     // Bumped to tell the two panels to re-query WhatsApp for newly-arrived photos.
     @State private var refreshToken = 0
+    // Free-text filter for the client picker (the list is long; recency order alone isn't
+    // enough to find an older client quickly).
+    @State private var contactSearch = ""
+    // Tracks search-field focus so we can hand keyboard control BACK to photo scrubbing
+    // (A/D + arrows) the moment the coach is done searching — otherwise the field keeps
+    // swallowing those keys.
+    @FocusState private var searchFocused: Bool
+
+    private var filteredContacts: [WAContact] {
+        let q = contactSearch.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return contactLoader.contacts }
+        return contactLoader.contacts.filter { $0.name.lowercased().contains(q) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -204,14 +225,40 @@ struct BrowseView: View {
                 if contactLoader.isLoadingContacts {
                     ProgressView().scaleEffect(0.6)
                 } else {
+                    // Type-to-search filter for the client list.
+                    HStack(spacing: 4) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11)).foregroundColor(.secondary)
+                        TextField("Search clients", text: $contactSearch)
+                            .textFieldStyle(.plain)
+                            .frame(width: 120)
+                            .focused($searchFocused)
+                            // Return/Esc hand control back to photo scrubbing.
+                            .onSubmit { searchFocused = false }
+                            .onExitCommand { contactSearch = ""; searchFocused = false }
+                        if !contactSearch.isEmpty {
+                            Button { contactSearch = ""; searchFocused = false } label: {
+                                Image(systemName: "xmark.circle.fill").font(.system(size: 11))
+                            }
+                            .buttonStyle(.plain).foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 7).padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Brand.control))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Brand.controlBorder, lineWidth: 1))
+
                     Picker("Client", selection: $selectedContact) {
                         Text("Select client…").tag(String?.none)
-                        ForEach(contactLoader.contacts) { c in
+                        ForEach(filteredContacts) { c in
                             Text("\(c.name)  (\(c.photoCount))").tag(Optional(c.name))
                         }
                     }
                     .labelsHidden().frame(width: 240)
-                    .onChange(of: selectedContact) { _, c in appState.whatsAppClientName = c }
+                    .onChange(of: selectedContact) { _, c in
+                        appState.whatsAppClientName = c
+                        // Picked a client — drop search focus so A/D + arrows scrub photos.
+                        searchFocused = false
+                    }
                 }
 
                 // Re-query WhatsApp for photos that arrived since this screen loaded, so the
@@ -356,6 +403,9 @@ struct BrowseView: View {
 
     private func startKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Don't hijack A/D/arrows while the coach is typing in a text field (e.g. the
+            // client search box) — let those keystrokes reach the field.
+            if isTextInputFocused() { return event }
             let isArrowLeft  = event.keyCode == 123
             let isArrowRight = event.keyCode == 124
             let isWASDLeft   = event.keyCode == 0  // A
@@ -645,6 +695,7 @@ struct DateCompareView: View {
 
     private func startDCKeyMonitor() {
         dcKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if isTextInputFocused() { return event }
             let isLeft  = event.keyCode == 123
             let isRight = event.keyCode == 124
             guard isLeft || isRight else { return event }
