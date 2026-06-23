@@ -3,6 +3,15 @@
     <channel>
         <title>CoachCam</title>
         <item>
+            <title>1.8.5</title>
+            <pubDate>Tue, 23 Jun 2026 19:15:12 +0100</pubDate>
+            <sparkle:version>32</sparkle:version>
+            <sparkle:shortVersionString>1.8.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/CoachCam-v1.8.5.html</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/spectrevisuals/CoachCam/releases/download/v1.8.5/CoachCam-v1.8.5.dmg" length="4185272" type="application/octet-stream" sparkle:edSignature="JJoxt7hsMl3iAeoyxvkIgTdiit/JLa69H45yE8TsyE23sUuZnbbal+F4dna/jNVc7dcIvSrfYNz8urmxIn4+BA=="/>
+        </item>
+        <item>
             <title>1.8.4</title>
             <pubDate>Mon, 22 Jun 2026 12:30:35 +0100</pubDate>
             <sparkle:version>31</sparkle:version>

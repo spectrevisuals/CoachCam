@@ -61,53 +61,64 @@ struct ExportManager {
     static func flattenAudioTracks(inputURL: URL) async -> URL {
         let asset = AVURLAsset(url: inputURL)
         do {
-            let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-            guard audioTracks.count > 1 else { return inputURL }   // nothing to merge
             let videoTracks = try await asset.loadTracks(withMediaType: .video)
+            let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+            guard let vTrack = videoTracks.first else { return inputURL }  // nothing we can improve
 
-            let outURL = inputURL.deletingPathExtension()
-                .appendingPathExtension("flat.mp4")
+            // Mix only the audio tracks that actually carry content. A dropped external mic can
+            // leave a zero-length track that would break the mixer or add a dead silent track —
+            // we skip those, but KEEP both voice and system audio whenever both have samples.
+            var validAudio: [AVAssetTrack] = []
+            for t in audioTracks {
+                if let range = try? await t.load(.timeRange), CMTimeGetSeconds(range.duration) > 0.05 {
+                    validAudio.append(t)
+                }
+            }
+            // Nothing to merge or strip (≤1 audio track and none of them empty) — leave as-is.
+            if audioTracks.count <= 1 && validAudio.count == audioTracks.count { return inputURL }
+
+            let outURL = inputURL.deletingPathExtension().appendingPathExtension("flat.mp4")
             try? FileManager.default.removeItem(at: outURL)
 
             let reader = try AVAssetReader(asset: asset)
             let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
 
             // Video: passthrough (nil settings = copy compressed samples, no re-encode).
-            var videoPair: (AVAssetReaderTrackOutput, AVAssetWriterInput)?
-            if let vTrack = videoTracks.first {
-                let vOut = AVAssetReaderTrackOutput(track: vTrack, outputSettings: nil)
-                vOut.alwaysCopiesSampleData = false
-                if reader.canAdd(vOut) { reader.add(vOut) }
-                let hint = try await vTrack.load(.formatDescriptions).first
-                let vIn = AVAssetWriterInput(mediaType: .video, outputSettings: nil, sourceFormatHint: hint)
-                vIn.expectsMediaDataInRealTime = false
-                if writer.canAdd(vIn) { writer.add(vIn) }
-                videoPair = (vOut, vIn)
+            let vOut = AVAssetReaderTrackOutput(track: vTrack, outputSettings: nil)
+            vOut.alwaysCopiesSampleData = false
+            if reader.canAdd(vOut) { reader.add(vOut) }
+            let hint = try await vTrack.load(.formatDescriptions).first
+            let vIn = AVAssetWriterInput(mediaType: .video, outputSettings: nil, sourceFormatHint: hint)
+            vIn.expectsMediaDataInRealTime = false
+            if writer.canAdd(vIn) { writer.add(vIn) }
+
+            // Audio: mix the tracks that have content into one AAC track (only if any exist —
+            // otherwise we produce video-only rather than fail, but that's the last resort).
+            var audioPair: (AVAssetReaderAudioMixOutput, AVAssetWriterInput)?
+            if !validAudio.isEmpty {
+                let pcm: [String: Any] = [
+                    AVFormatIDKey:             kAudioFormatLinearPCM,
+                    AVSampleRateKey:           44100,
+                    AVNumberOfChannelsKey:     2,
+                    AVLinearPCMBitDepthKey:    16,
+                    AVLinearPCMIsFloatKey:     false,
+                    AVLinearPCMIsBigEndianKey: false,
+                    AVLinearPCMIsNonInterleaved: false,
+                ]
+                let mixOut = AVAssetReaderAudioMixOutput(audioTracks: validAudio, audioSettings: pcm)
+                mixOut.alwaysCopiesSampleData = false
+                if reader.canAdd(mixOut) { reader.add(mixOut) }
+                let aac: [String: Any] = [
+                    AVFormatIDKey:         kAudioFormatMPEG4AAC,
+                    AVSampleRateKey:       44100,
+                    AVNumberOfChannelsKey: 2,
+                    AVEncoderBitRateKey:   128_000,   // matches RecordingConfig.audioBitrate
+                ]
+                let aIn = AVAssetWriterInput(mediaType: .audio, outputSettings: aac)
+                aIn.expectsMediaDataInRealTime = false
+                if writer.canAdd(aIn) { writer.add(aIn) }
+                audioPair = (mixOut, aIn)
             }
-
-            // Audio: mix all tracks down to one PCM stream, then re-encode to a single AAC track.
-            let pcm: [String: Any] = [
-                AVFormatIDKey:             kAudioFormatLinearPCM,
-                AVSampleRateKey:           44100,
-                AVNumberOfChannelsKey:     2,
-                AVLinearPCMBitDepthKey:    16,
-                AVLinearPCMIsFloatKey:     false,
-                AVLinearPCMIsBigEndianKey: false,
-                AVLinearPCMIsNonInterleaved: false,
-            ]
-            let mixOut = AVAssetReaderAudioMixOutput(audioTracks: audioTracks, audioSettings: pcm)
-            mixOut.alwaysCopiesSampleData = false
-            if reader.canAdd(mixOut) { reader.add(mixOut) }
-
-            let aac: [String: Any] = [
-                AVFormatIDKey:         kAudioFormatMPEG4AAC,
-                AVSampleRateKey:       44100,
-                AVNumberOfChannelsKey: 2,
-                AVEncoderBitRateKey:   128_000,   // matches RecordingConfig.audioBitrate
-            ]
-            let aIn = AVAssetWriterInput(mediaType: .audio, outputSettings: aac)
-            aIn.expectsMediaDataInRealTime = false
-            if writer.canAdd(aIn) { writer.add(aIn) }
 
             guard reader.startReading(), writer.startWriting() else {
                 throw reader.error ?? writer.error ?? ExportError.sessionCreationFailed
@@ -115,10 +126,10 @@ struct ExportManager {
             writer.startSession(atSourceTime: .zero)
 
             await withTaskGroup(of: Void.self) { group in
-                if let (vOut, vIn) = videoPair {
-                    group.addTask { await pump(vOut, into: vIn, label: "flat.video") }
+                group.addTask { await pump(vOut, into: vIn, label: "flat.video") }
+                if let (mixOut, aIn) = audioPair {
+                    group.addTask { await pump(mixOut, into: aIn, label: "flat.audio") }
                 }
-                group.addTask { await pump(mixOut, into: aIn, label: "flat.audio") }
             }
 
             guard reader.status == .completed else {
@@ -133,10 +144,12 @@ struct ExportManager {
             // replaceItemAt avoids a window where the original is deleted but the new file
             // isn't in place yet — so a failure here can't lose the recording.
             _ = try FileManager.default.replaceItemAt(inputURL, withItemAt: outURL)
+            NSLog("DEBUG: flatten merged \(validAudio.count) audio track(s) of \(audioTracks.count) → \(inputURL.lastPathComponent)")
             return inputURL
         } catch {
-            NSLog("ERROR: audio flatten failed (%@) — keeping original two-track file: %@",
-                  inputURL.lastPathComponent, String(describing: error))
+            // On ANY failure, keep the original file — it still has video + both audio tracks
+            // (just not merged), so we never lose the recording.
+            NSLog("ERROR: audio flatten failed (\(inputURL.lastPathComponent)) — keeping original: \(String(describing: error))")
             return inputURL
         }
     }

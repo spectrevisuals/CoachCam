@@ -38,7 +38,10 @@ final class FrameCompositor {
 
         var composite = screenCI
 
-        if let cam = cameraBuffer {
+        // Guard against a malformed camera buffer (a disconnecting external webcam can deliver
+        // a zero-dimension frame, which would divide-by-zero in the PiP aspect-fill scaling).
+        if let cam = cameraBuffer,
+           CVPixelBufferGetWidth(cam) > 0, CVPixelBufferGetHeight(cam) > 0 {
             var camCI = CIImage(cvPixelBuffer: cam)
             if mirrorCamera {
                 camCI = camCI.transformed(

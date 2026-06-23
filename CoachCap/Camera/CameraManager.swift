@@ -33,7 +33,13 @@ final class CameraManager: NSObject, ObservableObject {
     nonisolated(unsafe) private var _latestBuffer: CVPixelBuffer?
     private let bufferLock = NSLock()
 
+    /// `ProcessInfo.systemUptime` of the most recent camera frame. The recorder's watchdog
+    /// reads this to notice when an external camera stops delivering (a USB pull) seconds
+    /// before macOS posts the disconnect notification. 0 until the first frame.
+    nonisolated(unsafe) var lastFrameAt: Double = 0
+
     private var activeObserver: NSObjectProtocol?
+    private var deviceObservers: [NSObjectProtocol] = []
     private var lastCameraID: String?
 
     /// The camera device currently feeding the session — used to read its active video-effect
@@ -51,6 +57,15 @@ final class CameraManager: NSObject, ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.refreshOnActivation() }
         }
+        // Hot-plug: refresh the camera/mic lists the instant a device is connected or removed,
+        // so a newly-plugged webcam or mic appears in the pickers without relaunching the app.
+        for name in [AVCaptureDevice.wasConnectedNotification, AVCaptureDevice.wasDisconnectedNotification] {
+            deviceObservers.append(NotificationCenter.default.addObserver(
+                forName: name, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.enumerateDevices() }
+            })
+        }
     }
 
     /// On returning to the app, re-scan devices and — crucially — start the camera if
@@ -65,6 +80,7 @@ final class CameraManager: NSObject, ObservableObject {
 
     deinit {
         if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+        deviceObservers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     /// Shows the camera permission prompt if the user hasn't answered yet, then (re)builds
@@ -246,6 +262,7 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             NSLog("DEBUG CameraManager: No pixel buffer in sample")
             return
         }
+        lastFrameAt = ProcessInfo.processInfo.systemUptime
         bufferLock.lock(); _latestBuffer = pb; bufferLock.unlock()
 
         // Retain the buffer's image now, then hand the rendered CGImage to the main actor.

@@ -39,6 +39,22 @@ final class RecordingSession: NSObject, ObservableObject {
     nonisolated(unsafe) private var adaptor:     AVAssetWriterInputPixelBufferAdaptor?
     nonisolated(unsafe) private var _camera:     CameraManager?
 
+    // Per-track timeline continuity + sample counts. Each is touched only by its own capture
+    // queue (video/sysaud/mic), so no lock is needed. We drop any sample whose adjusted PTS is
+    // non-numeric, negative, or not advancing — a stalling/re-enumerating external device can
+    // emit duplicate, backwards or NaN timestamps, which otherwise make finishWriting fail and
+    // lose the whole recording. Counts let us spot an empty track at finalize.
+    nonisolated(unsafe) private var lastVideoPTS  = CMTime.negativeInfinity
+    nonisolated(unsafe) private var lastSysEndPTS = CMTime.negativeInfinity
+    nonisolated(unsafe) private var lastMicEndPTS = CMTime.negativeInfinity
+    nonisolated(unsafe) private var videoSampleCount = 0
+    nonisolated(unsafe) private var sysAudioSampleCount = 0
+    nonisolated(unsafe) private var micSampleCount = 0
+    /// `ProcessInfo.systemUptime` of the last mic sample, for the device watchdog (0 until the
+    /// first sample). Lets us notice a mic that stops sending audio within a few seconds,
+    /// rather than waiting ~10s for macOS to post the USB-disconnect notification.
+    nonisolated(unsafe) private var lastMicSampleAt: Double = 0
+
     // MARK: Mutable encode-thread state (always under captureLock)
     private let captureLock = NSLock()
     nonisolated(unsafe) private var cs = CS()
@@ -92,6 +108,8 @@ final class RecordingSession: NSObject, ObservableObject {
         isPaused = false
         freeTimerTask?.cancel()
         recordingTimeRemaining = nil
+        watchdogTask?.cancel(); watchdogTask = nil
+        removeCaptureObservers()
         try? await stream?.stopCapture()
         stream = nil
         micSession?.stopRunning()
@@ -100,6 +118,90 @@ final class RecordingSession: NSObject, ObservableObject {
             ProcessInfo.processInfo.endActivity(token)
             sleepAssertion = nil
         }
+    }
+
+    // MARK: - Capture-device interruption (external cam/mic dropping mid-recording)
+
+    /// Observes the events that fire when a capture device drops or its session breaks: a
+    /// physical disconnect (USB pull), a session runtime error, or a session interruption —
+    /// for BOTH the microphone session and the camera session. Any of these mid-recording
+    /// means the recording is compromised, so we stop and salvage immediately rather than let
+    /// the coach keep filming against a dead device and lose everything at finalize.
+    private func installCaptureObservers() {
+        removeCaptureObservers()
+        let nc = NotificationCenter.default
+        let camDeviceID = _camera?.activeCameraDevice?.uniqueID
+        let micDeviceID = micDevice?.uniqueID
+
+        // Physical disconnect of any capture device — match against the cam/mic in use.
+        captureObservers.append(nc.addObserver(
+            forName: .AVCaptureDeviceWasDisconnected, object: nil, queue: .main
+        ) { [weak self] note in
+            let id = (note.object as? AVCaptureDevice)?.uniqueID
+            let which: String? = (id != nil && id == micDeviceID) ? "microphone"
+                               : (id != nil && id == camDeviceID) ? "camera" : nil
+            guard let which else { return }
+            Task { @MainActor [weak self] in self?.captureInterrupted("Your \(which) disconnected.") }
+        })
+
+        // Session-level runtime errors / interruptions on the mic and camera sessions.
+        for (session, label) in [(micSession, "microphone"), (_camera?.activeSession, "camera")] {
+            guard let session else { continue }
+            captureObservers.append(nc.addObserver(
+                forName: .AVCaptureSessionRuntimeError, object: session, queue: .main
+            ) { [weak self] note in
+                let err = note.userInfo?[AVCaptureSessionErrorKey] as? NSError
+                Task { @MainActor [weak self] in
+                    self?.captureInterrupted("Your \(label) stopped working (\(err?.localizedDescription ?? "device error")).")
+                }
+            })
+            captureObservers.append(nc.addObserver(
+                forName: .AVCaptureSessionWasInterrupted, object: session, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.captureInterrupted("Your \(label) was interrupted.") }
+            })
+        }
+    }
+
+    private func removeCaptureObservers() {
+        captureObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        captureObservers.removeAll()
+    }
+
+    /// Catches a dropped external device fast: a yanked USB cam/mic simply STOPS calling its
+    /// delegate — there's no immediate error, and macOS can take ~10s to post the disconnect
+    /// notification. So we poll data-arrival times and trip the interruption ourselves once a
+    /// device that WAS delivering goes quiet. Thresholds are generous to avoid false positives
+    /// from brief hiccups; the OS notification remains a backstop.
+    private func startWatchdog() {
+        watchdogTask?.cancel()
+        watchdogTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, self.isRunning, self.pendingInterruptionReason == nil else { continue }
+                let now = ProcessInfo.processInfo.systemUptime
+                // Mic was delivering audio, now silent for >3s.
+                if self.lastMicSampleAt > 0, now - self.lastMicSampleAt > 3 {
+                    self.captureInterrupted("Your microphone stopped sending audio.")
+                    continue
+                }
+                // Camera session running and was delivering frames, now frozen for >5s.
+                if let cam = self._camera, cam.activeSession?.isRunning == true,
+                   cam.lastFrameAt > 0, now - cam.lastFrameAt > 5 {
+                    self.captureInterrupted("Your camera stopped sending video.")
+                }
+            }
+        }
+    }
+
+    /// A capture device dropped mid-recording: record the reason and end the session now,
+    /// salvaging whatever was filmed. Guarded so only the first event acts.
+    private func captureInterrupted(_ reason: String) {
+        guard isRunning, pendingInterruptionReason == nil else { return }
+        pendingInterruptionReason = reason
+        NSLog("WARN: capture interrupted mid-recording — \(reason)")
+        Self.appendErrorLog("capture interrupted mid-recording — \(reason)")
+        Task { await endUnexpectedly() }
     }
 
     /// Ends a recording that stopped on its own (writer failure, stream interruption, free-tier
@@ -115,7 +217,17 @@ final class RecordingSession: NSObject, ObservableObject {
     // MARK: Infrastructure (main actor only)
     private var stream:     SCStream?
     private var micSession: AVCaptureSession?
+    private var micDevice:  AVCaptureDevice?
     private var outputURL:  URL?
+
+    // Observers for capture-device disconnects / session interruptions (external USB cam or
+    // mic dropping mid-recording). Torn down with the capture.
+    private var captureObservers: [NSObjectProtocol] = []
+    // Polls camera/mic data-arrival times so a dropped device is caught in ~3-5s instead of
+    // waiting for macOS's (often ~10s) USB-disconnect notification.
+    private var watchdogTask: Task<Void, Never>?
+    // Set when capture is interrupted by a device drop, so finalize can tell the coach why.
+    private var pendingInterruptionReason: String?
 
     // Held for the whole recording so macOS won't sleep the display / nap the (often
     // minimised) app mid-capture — either of which interrupts the SCStream and leaves a
@@ -186,6 +298,11 @@ final class RecordingSession: NSObject, ObservableObject {
         finalizedURL = nil
         lastSaveError = nil
         lastSavePartialNote = nil
+        pendingInterruptionReason = nil
+        lastVideoPTS = .negativeInfinity
+        lastSysEndPTS = .negativeInfinity
+        lastMicEndPTS = .negativeInfinity
+        videoSampleCount = 0; sysAudioSampleCount = 0; micSampleCount = 0
         // Sync the burned-in mirror with the live setting. Without this the compositor keeps
         // its default (off) unless the user happens to toggle the mirror button, so the saved
         // video wouldn't mirror even though the preview (and the toggle) say it should.
@@ -276,6 +393,8 @@ final class RecordingSession: NSObject, ObservableObject {
             _ = await AVCaptureDevice.requestAccess(for: .audio)
         }
         setupMicCapture(deviceID: config.selectedMicID)
+        lastMicSampleAt = 0
+        installCaptureObservers()
 
         NSLog("DEBUG: Starting AVAssetWriter...")
         writer?.startWriting()
@@ -307,6 +426,7 @@ final class RecordingSession: NSObject, ObservableObject {
 
         isRunning = true
         isPaused  = false
+        startWatchdog()
         // Note any active camera video-effects (Reactions/Portrait/etc.) — they can't be
         // disabled programmatically but can destabilise capture, so record them for triage.
         let fx = camera.activeCameraEffects()
@@ -407,23 +527,38 @@ final class RecordingSession: NSObject, ObservableObject {
             }
         }
 
+        // Log the REAL outcome — status, error, the hidden underlying error (AVAssetWriter
+        // usually reports a generic -11800 and buries the actual CoreMedia code under
+        // NSUnderlyingErrorKey), plus per-track sample counts to spot a dropped/empty track.
+        let underlying = (w.error as NSError?)?.userInfo[NSUnderlyingErrorKey]
+        let diag = "finalize status=\(w.status.rawValue) error=\(String(describing: w.error)) underlying=\(String(describing: underlying)) samples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]"
+        NSLog("DEBUG: \(diag)")
+        Self.appendErrorLog(diag)
+
+        let interrupted = pendingInterruptionReason
+
         // Clean, fully-finalised recording.
         if w.status == .completed,
            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > 1024 {
             lastSaveError = nil
-            lastSavePartialNote = nil
+            // A clean finish is still a SHORTENED recording if a device dropped — tell the coach.
+            if let why = interrupted, let secs = await usablePartialDuration(url) {
+                lastSavePartialNote = "Recording stopped — \(why) Saved the \(Self.durationString(secs)) recorded before it stopped."
+            } else {
+                lastSavePartialNote = nil
+            }
             return url
         }
 
         // Not clean — but because we record in fragments, the file on disk is usually playable
         // up to the last fragment. Salvage it as a partial clip instead of losing everything.
-        let reason = describeWriterError(w.error)
+        let reason = interrupted ?? describeWriterError(w.error)
         if let secs = await usablePartialDuration(url) {
             lastSaveError = nil
-            lastSavePartialNote = "Recording didn't finish cleanly — \(reason) Recovered the \(Self.durationString(secs)) that was filmed."
+            lastSavePartialNote = "Recording stopped — \(reason) Recovered the \(Self.durationString(secs)) that was filmed."
             NSLog("WARN: recording salvaged as partial (\(Self.durationString(secs))) — \(reason)")
             Self.appendErrorLog("salvaged partial (\(Self.durationString(secs))) — \(reason)")
-            return url   // stop()'s remux/flatten turns the fragmented partial into a clean clip
+            return url   // finalizeWriter's remux/flatten turns the fragmented partial into a clean clip
         }
 
         // Nothing usable on disk.
@@ -594,6 +729,7 @@ final class RecordingSession: NSObject, ObservableObject {
         s.beginConfiguration()
         let mic = deviceID.flatMap { AVCaptureDevice(uniqueID: $0) }
                ?? AVCaptureDevice.default(for: .audio)
+        micDevice = mic
         if let m = mic, let inp = try? AVCaptureDeviceInput(device: m), s.canAddInput(inp) {
             s.addInput(inp)
         }
@@ -650,16 +786,23 @@ extension RecordingSession: SCStreamOutput {
         if isFirst { writer?.startSession(atSourceTime: .zero) }
 
         let adjPTS = CMTimeSubtract(CMTimeSubtract(rawPTS, tZero), totalPaused)
-        guard CMTIME_IS_VALID(adjPTS), adjPTS >= .zero else { return }
+        // Drop non-numeric / negative / non-advancing timestamps — a stalling external device
+        // can emit these, and a backwards or duplicate PTS makes the writer fail at finalize.
+        guard adjPTS.isNumeric, adjPTS >= .zero, adjPTS > lastVideoPTS else { return }
 
         // While the cam is floating it's recorded as an on-screen window, so suppress the
-        // burned-in PiP to avoid a duplicate face cam.
-        let camBuf = floating ? nil : _camera?.latestBuffer()
+        // burned-in PiP to avoid a duplicate face cam. Also drop the PiP if the camera has gone
+        // stale (no new frame for >1s — e.g. an external cam was unplugged) so we don't burn a
+        // frozen face into the video while the watchdog winds down.
+        let camStale = (_camera.map { ProcessInfo.processInfo.systemUptime - $0.lastFrameAt > 1 } ?? true)
+        let camBuf = (floating || camStale) ? nil : _camera?.latestBuffer()
         if let out = compositor.composite(screenSample: sample,
                                           cameraBuffer: camBuf,
                                           pipRect: pipRect,
-                                          outputSize: outputSize) {
-            adaptor?.append(out, withPresentationTime: adjPTS)
+                                          outputSize: outputSize),
+           adaptor?.append(out, withPresentationTime: adjPTS) == true {
+            lastVideoPTS = adjPTS
+            videoSampleCount += 1
         }
     }
 
@@ -678,8 +821,14 @@ extension RecordingSession: SCStreamOutput {
         if isFirst { writer?.startSession(atSourceTime: .zero) }
 
         let adjPTS = CMTimeSubtract(CMTimeSubtract(rawPTS, tZero), totalPaused)
-        guard CMTIME_IS_VALID(adjPTS), adjPTS >= .zero else { return }
-        if let adj = retimed(sample, to: adjPTS) { sa.append(adj) }
+        // Must be numeric, non-negative, and not overlap the previous buffer (audio appends
+        // fail on overlap; gaps are fine).
+        guard adjPTS.isNumeric, adjPTS >= .zero, adjPTS >= lastSysEndPTS else { return }
+        if let adj = retimed(sample, to: adjPTS), sa.append(adj) {
+            sysAudioSampleCount += 1
+            let dur = CMSampleBufferGetDuration(adj)
+            lastSysEndPTS = dur.isNumeric ? CMTimeAdd(adjPTS, dur) : adjPTS
+        }
     }
 }
 
@@ -689,6 +838,7 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
     nonisolated func captureOutput(_ output: AVCaptureOutput,
                                     didOutput sample: CMSampleBuffer,
                                     from connection: AVCaptureConnection) {
+        lastMicSampleAt = ProcessInfo.processInfo.systemUptime   // device-alive heartbeat
         guard !writerDidFail() else { return }
         guard let ma = micAudInput, ma.isReadyForMoreMediaData else { return }
         let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
@@ -703,8 +853,12 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
         if isFirst { writer?.startSession(atSourceTime: .zero) }
 
         let adjPTS = CMTimeSubtract(CMTimeSubtract(rawPTS, tZero), totalPaused)
-        guard CMTIME_IS_VALID(adjPTS), adjPTS >= .zero else { return }
-        if let adj = retimed(sample, to: adjPTS) { ma.append(adj) }
+        guard adjPTS.isNumeric, adjPTS >= .zero, adjPTS >= lastMicEndPTS else { return }
+        if let adj = retimed(sample, to: adjPTS), ma.append(adj) {
+            micSampleCount += 1
+            let dur = CMSampleBufferGetDuration(adj)
+            lastMicEndPTS = dur.isNumeric ? CMTimeAdd(adjPTS, dur) : adjPTS
+        }
     }
 }
 
