@@ -234,10 +234,10 @@ struct BrowseView: View {
                             .frame(width: 120)
                             .focused($searchFocused)
                             // Return/Esc hand control back to photo scrubbing.
-                            .onSubmit { searchFocused = false }
-                            .onExitCommand { contactSearch = ""; searchFocused = false }
+                            .onSubmit { dropSearchFocus() }
+                            .onExitCommand { contactSearch = ""; dropSearchFocus() }
                         if !contactSearch.isEmpty {
-                            Button { contactSearch = ""; searchFocused = false } label: {
+                            Button { contactSearch = ""; dropSearchFocus() } label: {
                                 Image(systemName: "xmark.circle.fill").font(.system(size: 11))
                             }
                             .buttonStyle(.plain).foregroundColor(.secondary)
@@ -256,8 +256,10 @@ struct BrowseView: View {
                     .labelsHidden().frame(width: 240)
                     .onChange(of: selectedContact) { _, c in
                         appState.whatsAppClientName = c
-                        // Picked a client — drop search focus so A/D + arrows scrub photos.
-                        searchFocused = false
+                        // Picked a client — clear the box and hand keyboard control back to
+                        // photo scrubbing so A/D + arrows work immediately.
+                        contactSearch = ""
+                        dropSearchFocus()
                     }
                 }
 
@@ -363,6 +365,19 @@ struct BrowseView: View {
         // explicit refresh button.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await contactLoader.loadContacts() }
+        }
+    }
+
+    /// Reliably hand keyboard focus back to photo scrubbing. `@FocusState = false` alone is
+    /// flaky on macOS (works on some machines, not others — which is why A/D scrubbing broke
+    /// for the client but not locally), so we also resign the window's first responder at the
+    /// AppKit level, which actually releases the search field's editor.
+    private func dropSearchFocus() {
+        searchFocused = false
+        DispatchQueue.main.async {
+            if let win = NSApp.keyWindow, win.firstResponder is NSText || win.firstResponder is NSTextView {
+                win.makeFirstResponder(nil)
+            }
         }
     }
 
