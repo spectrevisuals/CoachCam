@@ -64,3 +64,46 @@ targets:
       Debug:
         settings:
           CODE_SIGN_ENTITLEMENTS: CoachCap/CoachCap.entitlements
+
+  # Hostless logic-test bundle. Compiles the dependency-free logic files (e.g. PhotoMatching)
+  # directly, so tests run fast & headless with no app host / code injection / signing.
+  CoachCapTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+      - path: CoachCap/PhotoTool/PhotoMatching.swift
+    settings:
+      base:
+        PRODUCT_NAME: CoachCapTests
+        PRODUCT_MODULE_NAME: CoachCapTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.coachcam.tests
+        INFOPLIST_FILE: ""
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_ENTITLEMENTS: ""
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        OTHER_CODE_SIGN_FLAGS: ""
+        DEVELOPMENT_TEAM: ""
+
+schemes:
+  CoachCap:
+    build:
+      targets:
+        CoachCap: all
+        CoachCapTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - CoachCapTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
