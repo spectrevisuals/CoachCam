@@ -13,6 +13,7 @@ struct RecordingView: View {
 
     @State private var showSavedBanner = false
     @State private var floatingPanel: FloatingCameraPanel? = nil
+    @State private var annotationOverlay = AnnotationOverlay()
     @State private var showLowStorageAlert = false
     @State private var freeGBText = ""
     @State private var showQuotaAlert = false
@@ -71,6 +72,9 @@ struct RecordingView: View {
         .onChange(of: session.isRunning) { _, running in
             if !running {
                 restoreMainWindow()
+                // Recording ended — drop draw mode and clear any on-screen lines.
+                appState.isAnnotating = false
+                annotationOverlay.teardown()
                 // Recording ended WITHOUT the coach pressing stop (writer died mid-recording,
                 // the stream was interrupted, or the free-tier timer fired). The normal stop
                 // path clears isRecording first, so this only runs for an unexpected stop —
@@ -369,6 +373,19 @@ struct RecordingView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle(color: Brand.danger))
                 .keyboardShortcut(".")
+
+                // Draw-on-screen: toggle draw mode, and clear the lines.
+                Button { toggleAnnotate() } label: {
+                    HStack(spacing: 7) { Image(systemName: "pencil.tip"); Text(appState.isAnnotating ? "drawing…" : "draw") }
+                }
+                .buttonStyle(OutlineButtonStyle(active: appState.isAnnotating))
+                .help("Draw lines over anything on screen. Tap, then drag to draw. Tap again to stop.")
+
+                Button { annotationOverlay.clear() } label: {
+                    Image(systemName: "eraser")
+                }
+                .buttonStyle(OutlineButtonStyle())
+                .help("Clear the drawn lines")
             } else {
                 Button { startWithCountdown() } label: {
                     HStack(spacing: 8) {
@@ -832,6 +849,22 @@ struct RecordingView: View {
             floatingPanel = nil
             session.setCameraFloating(false)
         } else {
+            let panel = makeFloatingPanel()
+            panel.orderFront(nil)
+            floatingPanel = panel
+            session.setCameraFloating(true)
+            placeFloatCamInCustomArea()
+        }
+    }
+
+    /// Toggle draw-on-screen mode. Lines persist until cleared; the overlay is torn down when
+    /// recording ends.
+    private func toggleAnnotate() {
+        appState.isAnnotating.toggle()
+        annotationOverlay.setDrawing(appState.isAnnotating)
+    }
+
+    private func makeFloatingPanel() -> FloatingCameraPanel {
             let panel = FloatingCameraPanel(
                 camera: camera,
                 appState: appState,
@@ -843,14 +876,11 @@ struct RecordingView: View {
                 onStop: { stopAndSave() },
                 onCancelCountdown: { cancelCountdown() },
                 onSkipCountdown: { skipCountdown() },
-                onCustomArea: { toggleCustomArea() }
+                onCustomArea: { toggleCustomArea() },
+                onAnnotateToggle: { toggleAnnotate() },
+                onClearAnnotations: { annotationOverlay.clear() }
             )
-            panel.orderFront(nil)
-            floatingPanel = panel
-            session.setCameraFloating(true)
-            // If a custom area is already drawn, drop the cam straight into it.
-            placeFloatCamInCustomArea()
-        }
+            return panel
     }
 
     private func countdownOverlay(_ count: Int) -> some View {

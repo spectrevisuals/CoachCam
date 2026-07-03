@@ -14,7 +14,9 @@ final class FloatingCameraPanel: NSPanel {
          onStop: @escaping () -> Void,
          onCancelCountdown: @escaping () -> Void,
          onSkipCountdown: @escaping () -> Void,
-         onCustomArea: @escaping () -> Void) {
+         onCustomArea: @escaping () -> Void,
+         onAnnotateToggle: @escaping () -> Void,
+         onClearAnnotations: @escaping () -> Void) {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 160, height: 218),
@@ -48,6 +50,8 @@ final class FloatingCameraPanel: NSPanel {
             onCancelCountdown: onCancelCountdown,
             onSkipCountdown: onSkipCountdown,
             onCustomArea: onCustomArea,
+            onAnnotateToggle: onAnnotateToggle,
+            onClearAnnotations: onClearAnnotations,
             onClose: { [weak self] in self?.close() }
         ))
         host.autoresizingMask = [.width, .height]
@@ -92,6 +96,8 @@ private struct FloatingCameraView: View {
     let onCancelCountdown: () -> Void
     let onSkipCountdown: () -> Void
     let onCustomArea: () -> Void
+    let onAnnotateToggle: () -> Void
+    let onClearAnnotations: () -> Void
     let onClose: () -> Void
 
     private var d: CGFloat { appState.floatCamDiameter }
@@ -243,13 +249,31 @@ private struct FloatingCameraView: View {
             }
 
         } else if appState.isRecording {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button(action: onPauseResume) {
                     Image(systemName: appState.isPaused ? "play.fill" : "pause.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .frame(maxWidth: .infinity, minHeight: 34)
                 }
                 .buttonStyle(FloatButtonStyle(color: appState.isPaused ? Color(hex: 0x28C840) : Brand.accent))
+
+                // Draw-on-screen toggle — highlighted while drawing.
+                Button(action: onAnnotateToggle) {
+                    Image(systemName: "pencil.tip")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                }
+                .buttonStyle(FloatButtonStyle(color: appState.isAnnotating ? Brand.accent2 : Color(white: 0.25)))
+                .help("Draw on screen — tap, then drag to draw lines. Tap again to stop drawing.")
+
+                // Clear all drawn lines.
+                Button(action: onClearAnnotations) {
+                    Image(systemName: "eraser")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                }
+                .buttonStyle(FloatButtonStyle(color: Color(white: 0.25)))
+                .help("Clear the drawn lines")
 
                 Button(action: onStop) {
                     Image(systemName: "stop.fill")

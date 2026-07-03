@@ -17,6 +17,7 @@
 		2C9488B383110E3263C61466 /* RecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75A1F318DEE96B9FDE2E6A6 /* RecordingSession.swift */; };
 		2CF12ADC89D29769D217CA35 /* WhatsAppMediaBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E72A025990F2AE436EFFF8 /* WhatsAppMediaBrowser.swift */; };
 		31EB1C41B05D73AA00627EAF /* License.swift in Sources */ = {isa = PBXBuildFile; fileRef = 771B2E7E8F564068586EE10C /* License.swift */; };
+		34FDF8ADC4599808D2329146 /* AnnotationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56870BA230C2C79B447BC41B /* AnnotationOverlay.swift */; };
 		3631FB764A96FDB8E1AB8855 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9949FD2C41F8BB91C270B93D /* Brand.swift */; };
 		36566D057C8C005500D23423 /* PhotoToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */; };
 		40A0229451EAB5D97F3C7163 /* DateCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */; };
@@ -64,6 +65,7 @@
 		5570CFCEA4F452846250C0D7 /* FloatingCameraPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingCameraPanel.swift; sourceTree = "<group>"; };
 		55DF0F36C25320D26882D739 /* PhotoMatchingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMatchingTests.swift; sourceTree = "<group>"; };
 		55E5413906E0762F2765DE24 /* PhotoMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMatching.swift; sourceTree = "<group>"; };
+		56870BA230C2C79B447BC41B /* AnnotationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationOverlay.swift; sourceTree = "<group>"; };
 		5B202A972781663A1E62EDD6 /* FrameCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCompositor.swift; sourceTree = "<group>"; };
 		5F262202F43247BCA770F183 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		63E72A025990F2AE436EFFF8 /* WhatsAppMediaBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppMediaBrowser.swift; sourceTree = "<group>"; };
@@ -133,6 +135,7 @@
 		3C0994710FD253A8824F9363 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				56870BA230C2C79B447BC41B /* AnnotationOverlay.swift */,
 				9949FD2C41F8BB91C270B93D /* Brand.swift */,
 				E1FA0EE5C1EA9FD2DBD3B7F9 /* CheckForUpdatesView.swift */,
 				5047323346857C0344F8B834 /* ContentView.swift */,
@@ -328,6 +331,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */,
+				34FDF8ADC4599808D2329146 /* AnnotationOverlay.swift in Sources */,
 				1D2658976C140792B9B45B8E /* AnnotationView.swift in Sources */,
 				55B68A1E23EAB17C51D3A868 /* AppSounds.swift in Sources */,
 				F36BEDE81E80A3A2345C0BF7 /* AppState.swift in Sources */,

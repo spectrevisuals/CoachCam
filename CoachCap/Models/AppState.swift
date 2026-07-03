@@ -22,6 +22,9 @@ final class AppState: ObservableObject {
     @Published var selectedMicID: String? = nil
     @Published var selectedDisplayID: CGDirectDisplayID? = nil   // nil = primary
     @Published var webcamOnlyMode = false
+    // Draw-on-screen (annotation/telestrator) mode: when on, the coach can draw lines over
+    // anything on screen; lines stay until cleared. Toggled from the recorder or float cam.
+    @Published var isAnnotating = false
 
     // Loom-style "custom area": when set, only the screen content inside this rect is
     // recorded. Rect is in the target display's coordinate space (points, top-left origin,
