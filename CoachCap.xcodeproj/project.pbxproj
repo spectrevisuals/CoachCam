@@ -22,6 +22,7 @@
 		36566D057C8C005500D23423 /* PhotoToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */; };
 		40A0229451EAB5D97F3C7163 /* DateCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */; };
 		478D4C6627B075B02EB1F286 /* AreaSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCABBEFB81EC161C4F28B93 /* AreaSelector.swift */; };
+		4DCC8D2AA6D03CF3D98F9D0C /* PolarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853C989CDC02DD8FFF770547 /* PolarClient.swift */; };
 		4EC2B677B89F0FE9962102F8 /* PhotoStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4563D542A31B4F8F32F265B4 /* PhotoStitcher.swift */; };
 		5420DBC28B5C89EA6B448EC8 /* AIMatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */; };
 		55B68A1E23EAB17C51D3A868 /* AppSounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E1517D193C3890A82133C57 /* AppSounds.swift */; };
@@ -73,6 +74,7 @@
 		6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
 		771B2E7E8F564068586EE10C /* License.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = License.swift; sourceTree = "<group>"; };
 		852B45D3697090E8F0B88312 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		853C989CDC02DD8FFF770547 /* PolarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolarClient.swift; sourceTree = "<group>"; };
 		87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LemonSqueezyClient.swift; sourceTree = "<group>"; };
 		8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCompareView.swift; sourceTree = "<group>"; };
 		92B8AD1DB8CBB1DF2EFE5BF2 /* CoachCap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoachCap.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -195,6 +197,7 @@
 				EB87094AD033A9921289BDE5 /* Keychain.swift */,
 				87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */,
 				771B2E7E8F564068586EE10C /* License.swift */,
+				853C989CDC02DD8FFF770547 /* PolarClient.swift */,
 				3722468CB77EB086D2FB7748 /* RecordingConfig.swift */,
 			);
 			path = Models;
@@ -361,6 +364,7 @@
 				FDE560FED8799F19C8716522 /* PhotoMatching.swift in Sources */,
 				4EC2B677B89F0FE9962102F8 /* PhotoStitcher.swift in Sources */,
 				36566D057C8C005500D23423 /* PhotoToolView.swift in Sources */,
+				4DCC8D2AA6D03CF3D98F9D0C /* PolarClient.swift in Sources */,
 				09C3BF0BF9D38DD00B674CED /* RecordingConfig.swift in Sources */,
 				2C9488B383110E3263C61466 /* RecordingSession.swift in Sources */,
 				C6DC436E70DCF775CEA90419 /* RecordingView.swift in Sources */,
