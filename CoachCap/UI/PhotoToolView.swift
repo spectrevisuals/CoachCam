@@ -373,7 +373,7 @@ private struct PhotoPanel: View {
     var body: some View {
         ZStack {
             if image != nil {
-                ZoomablePhoto(image: displayImage ?? image!)
+                ZoomablePhoto { Image(nsImage: displayImage ?? image!).resizable().scaledToFit() }
                     .overlay(alignment: .topTrailing) {
                         Button { image = nil } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -460,49 +460,6 @@ private struct PhotoPanel: View {
         if panel.runModal() == .OK, let url = panel.url {
             image = NSImage(contentsOf: url)
         }
-    }
-}
-
-// MARK: - Zoomable Photo
-
-private struct ZoomablePhoto: View {
-    let image: NSImage
-
-    @State private var zoom: CGFloat           = 1
-    @State private var offset: CGSize          = .zero
-    @GestureState private var liveZoom: CGFloat = 1
-    @GestureState private var liveDrag: CGSize  = .zero
-
-    var body: some View {
-        GeometryReader { geo in
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(width: geo.size.width, height: geo.size.height)
-                .scaleEffect(zoom * liveZoom, anchor: .center)
-                .offset(x: offset.width  + liveDrag.width,
-                        y: offset.height + liveDrag.height)
-                .gesture(
-                    MagnificationGesture()
-                        .updating($liveZoom)  { v, s, _ in s = v }
-                        .onEnded { v in
-                            zoom = max(1, zoom * v)
-                            if zoom <= 1 { zoom = 1; offset = .zero }
-                        }
-                )
-                .gesture(
-                    DragGesture()
-                        .updating($liveDrag) { v, s, _ in s = v.translation }
-                        .onEnded { v in
-                            offset = CGSize(width:  offset.width  + v.translation.width,
-                                           height: offset.height + v.translation.height)
-                        }
-                )
-                .onTapGesture(count: 2) {
-                    withAnimation(.spring()) { zoom = zoom > 1 ? 1 : 2; offset = .zero }
-                }
-        }
-        .clipped()
     }
 }
 

@@ -626,7 +626,7 @@ private struct BrowsePanelView: View {
             ZStack {
                 Color.black
                 if let t = currentPhotos[index].thumb {
-                    WatermarkedImage(image: t)
+                    ZoomablePhoto { WatermarkedImage(image: t) }
                 } else {
                     ProgressView()
                 }
@@ -951,7 +951,7 @@ struct DateCompareView: View {
                     ZStack {
                         Color.black
                         if let t = item.thumb {
-                            WatermarkedImage(image: t)
+                            ZoomablePhoto { WatermarkedImage(image: t) }
                         } else {
                             ProgressView()
                         }

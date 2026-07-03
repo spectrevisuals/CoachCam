@@ -12,6 +12,7 @@
 		1D2658976C140792B9B45B8E /* AnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03918194DCDA149CA089450A /* AnnotationView.swift */; };
 		238AD5A2F3258483354B78EC /* DisplayList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 059730CB03C1E1B1869367A8 /* DisplayList.swift */; };
 		2406C52DC94FABD46D9E08D2 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A6488731B2659C66640220 /* ExportManager.swift */; };
+		2A61A7243A8967AF06BB04B0 /* ZoomablePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2353083D18C2FB643C0A0EB /* ZoomablePhoto.swift */; };
 		2A63A2E79300213455F91902 /* CameraPreviewLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F8AA2791B72BEAC4BEF73C /* CameraPreviewLayer.swift */; };
 		2C9488B383110E3263C61466 /* RecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75A1F318DEE96B9FDE2E6A6 /* RecordingSession.swift */; };
 		2CF12ADC89D29769D217CA35 /* WhatsAppMediaBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E72A025990F2AE436EFFF8 /* WhatsAppMediaBrowser.swift */; };
@@ -81,6 +82,7 @@
 		E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		EB87094AD033A9921289BDE5 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		EDDB351DC51C5F94B3B4840D /* WhatsAppShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppShare.swift; sourceTree = "<group>"; };
+		F2353083D18C2FB643C0A0EB /* ZoomablePhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomablePhoto.swift; sourceTree = "<group>"; };
 		FCCABBEFB81EC161C4F28B93 /* AreaSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AreaSelector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -139,6 +141,7 @@
 				CEA4F561F9FA5C5A5A71AEC0 /* PhotoToolView.swift */,
 				5F262202F43247BCA770F183 /* RecordingView.swift */,
 				EDDB351DC51C5F94B3B4840D /* WhatsAppShare.swift */,
+				F2353083D18C2FB643C0A0EB /* ZoomablePhoto.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -356,6 +359,7 @@
 				5DD1786847517DFACF5355D0 /* WatermarkRenderer.swift in Sources */,
 				2CF12ADC89D29769D217CA35 /* WhatsAppMediaBrowser.swift in Sources */,
 				CE64E539EBD722E72F53F339 /* WhatsAppShare.swift in Sources */,
+				2A61A7243A8967AF06BB04B0 /* ZoomablePhoto.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
