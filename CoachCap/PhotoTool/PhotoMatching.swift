@@ -73,9 +73,16 @@ enum PhotoMatching {
     }
 
     nonisolated static func computePerceptualHash(_ url: URL) -> [UInt64]? {
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let cg  = CGImageSourceCreateImageAtIndex(src, 0, nil)
-        else { return nil }
+        // Primary decode path.
+        var cg = CGImageSourceCreateWithURL(url as CFURL, nil)
+            .flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+        // Fallback for images CGImageSource can't decode directly (some HEIC / odd encodings):
+        // let NSImage decode and render to a CGImage. Without this, an unhashable HD/standard
+        // pair returns nil for both and BYPASSES dedup — which is one way photos show twice.
+        if cg == nil {
+            cg = NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
+        guard let cg else { return nil }
 
         let w = 17, h = 16
         var pixels = [UInt8](repeating: 0, count: w * h)
