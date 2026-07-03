@@ -627,6 +627,7 @@ private struct BrowsePanelView: View {
                 Color.black
                 if let t = currentPhotos[index].thumb {
                     ZoomablePhoto { WatermarkedImage(image: t) }
+                        .id(currentPhotos[index].id)   // reset zoom when the photo changes
                 } else {
                     ProgressView()
                 }
@@ -952,6 +953,7 @@ struct DateCompareView: View {
                         Color.black
                         if let t = item.thumb {
                             ZoomablePhoto { WatermarkedImage(image: t) }
+                                .id(item.id)   // reset zoom when the photo changes
                         } else {
                             ProgressView()
                         }

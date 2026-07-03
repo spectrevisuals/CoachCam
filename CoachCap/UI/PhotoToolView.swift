@@ -374,6 +374,7 @@ private struct PhotoPanel: View {
         ZStack {
             if image != nil {
                 ZoomablePhoto { Image(nsImage: displayImage ?? image!).resizable().scaledToFit() }
+                    .id(ObjectIdentifier(displayImage ?? image!))   // reset zoom when the photo changes
                     .overlay(alignment: .topTrailing) {
                         Button { image = nil } label: {
                             Image(systemName: "xmark.circle.fill")

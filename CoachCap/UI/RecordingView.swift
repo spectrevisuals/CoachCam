@@ -860,6 +860,7 @@ struct RecordingView: View {
     /// Toggle draw-on-screen mode. Lines persist until cleared; the overlay is torn down when
     /// recording ends.
     private func toggleAnnotate() {
+        annotationOverlay.onExitDrawing = { appState.isAnnotating = false }
         appState.isAnnotating.toggle()
         annotationOverlay.setDrawing(appState.isAnnotating)
     }

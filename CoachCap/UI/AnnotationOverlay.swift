@@ -10,6 +10,10 @@ final class AnnotationOverlay {
     private var window: AnnotationWindow?
     private let canvas = AnnotationCanvasView()
 
+    /// Called when the coach presses Esc while drawing — a universal "stop drawing" that works
+    /// even when the on-screen button is hidden beneath the overlay. The app syncs its state.
+    var onExitDrawing: (() -> Void)?
+
     /// True while there are strokes on screen (so the UI can enable/disable "clear").
     var hasStrokes: Bool { canvas.hasStrokes }
 
@@ -21,6 +25,7 @@ final class AnnotationOverlay {
         if on {
             window?.orderFrontRegardless()
             window?.makeKey()
+            window?.makeFirstResponder(canvas)
         }
     }
 
@@ -46,11 +51,15 @@ final class AnnotationOverlay {
         w.isOpaque = false
         w.backgroundColor = .clear
         w.hasShadow = false
-        w.level = .screenSaver                       // above normal windows, still captured by SCK
+        // Above normal app windows (so it draws over WhatsApp etc. and is captured by SCK) but
+        // BELOW the float cam (.floating) so the float cam's Draw/Clear/Stop buttons stay
+        // clickable while drawing — otherwise the coach can't turn drawing off or stop.
+        w.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue - 1)
         w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         w.ignoresMouseEvents = true
         canvas.frame = w.contentLayoutRect
         canvas.autoresizingMask = [.width, .height]
+        canvas.onEscape = { [weak self] in self?.setDrawing(false); self?.onExitDrawing?() }
         w.contentView?.addSubview(canvas)
         w.orderFrontRegardless()
         window = w
@@ -66,6 +75,7 @@ final class AnnotationWindow: NSWindow {
 /// Freehand pen. Renders committed strokes plus the one in progress.
 final class AnnotationCanvasView: NSView {
     var drawingEnabled = false
+    var onEscape: (() -> Void)?
     private var strokes: [[NSPoint]] = []
     private var current:  [NSPoint]  = []
 
@@ -97,6 +107,10 @@ final class AnnotationCanvasView: NSView {
         if current.count > 1 { strokes.append(current) }
         current = []
         needsDisplay = true
+    }
+    override func keyDown(with e: NSEvent) {
+        if e.keyCode == 53 { onEscape?() }   // Esc → stop drawing
+        else { super.keyDown(with: e) }
     }
 
     func clear() { strokes = []; current = []; needsDisplay = true }
