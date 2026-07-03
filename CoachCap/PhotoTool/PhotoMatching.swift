@@ -22,18 +22,25 @@ struct WhatsAppMediaItem: Identifiable {
 /// "photos shown twice" regression directly. `WhatsAppMediaLoader` forwards to these.
 enum PhotoMatching {
 
+    /// Perceptual-hash distance below which two photos are treated as the same image (an
+    /// HD/standard pair). Measured on real WhatsApp SD/HD pairs: true twins hash at distances
+    /// of ~6–10, while genuinely different check-in photos sit 100+ apart — a huge gap. The old
+    /// value of 7 missed twins that landed at distance 10 (the cause of "photos shown twice");
+    /// 20 catches twins with margin for compression variance and is nowhere near the distinct
+    /// floor, so it can't collapse two real photos into one. See PhotoMatchingTests.
+    static let dupHashThreshold = 20
+
     /// Removes WhatsApp's HD/standard duplicate pairs. WhatsApp sends an HD photo as a
     /// second message holding a higher-res copy of the standard one, so the same image
     /// arrives twice with different files. We match by a 256-bit perceptual hash and keep
-    /// the larger (HD) copy. Threshold 7 sits safely between true twins (≤3) and distinct
-    /// physique photos of the same client (≥11) measured on real check-in data.
+    /// the larger (HD) copy.
     nonisolated static func dedupHDDuplicates(_ items: [WhatsAppMediaItem]) -> [WhatsAppMediaItem] {
         struct Kept { var item: WhatsAppMediaItem; let hash: [UInt64]? }
         var kept: [Kept] = []
         for item in items {
             let hash = perceptualHash(item.url)
             if let hash,
-               let idx = kept.firstIndex(where: { $0.hash != nil && hammingDistance($0.hash!, hash) <= 7 }) {
+               let idx = kept.firstIndex(where: { $0.hash != nil && hammingDistance($0.hash!, hash) <= dupHashThreshold }) {
                 // Duplicate of an already-kept photo — keep whichever file is larger (HD).
                 if item.fileSize > kept[idx].item.fileSize {
                     kept[idx] = Kept(item: item, hash: hash)

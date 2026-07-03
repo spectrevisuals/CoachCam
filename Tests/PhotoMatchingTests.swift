@@ -6,6 +6,18 @@ import CoreGraphics
 // host / @testable import is needed — keeps the tests fast and headless.
 final class PhotoMatchingTests: XCTestCase {
 
+    /// Real WhatsApp SD/HD twins were measured (on live check-in photos) at hamming distances
+    /// of 6, 6, and 10, while genuinely different check-in photos sat 121–133 apart. The match
+    /// threshold must sit in that gap: ABOVE the observed twin max of 10 (the old value of 7
+    /// missed the distance-10 pair → "photos shown twice"), and well BELOW the distinct floor
+    /// (so two real photos are never collapsed into one).
+    func testThresholdSitsInTwinVsDistinctGap() {
+        XCTAssertGreaterThanOrEqual(PhotoMatching.dupHashThreshold, 11,
+            "must exceed the measured SD/HD twin distance of 10 — 7 caused the duplicate bug")
+        XCTAssertLessThanOrEqual(PhotoMatching.dupHashThreshold, 60,
+            "must stay well below the 100+ distance of genuinely distinct check-in photos")
+    }
+
     func testHammingDistance() {
         XCTAssertEqual(PhotoMatching.hammingDistance([0, 0, 0, 0], [0, 0, 0, 0]), 0)
         XCTAssertEqual(PhotoMatching.hammingDistance([0b1011, 0, 0, 0], [0, 0, 0, 0]), 3)
