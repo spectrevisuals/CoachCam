@@ -36,10 +36,11 @@ targets:
           - "**/*.md"
       - path: Resources/Quicksand.ttf
         buildPhase: resources
+      # Asset catalog (app icon + CC badge etc.). Must be a `source` — XcodeGen has no target
+      # `resources` key, so listing it there silently drops it from the build.
+      - path: CoachCap/Assets.xcassets
     dependencies:
       - package: Sparkle
-    resources:
-      - CoachCap/Assets.xcassets
     info:
       path: CoachCap/Info.plist
       properties:
