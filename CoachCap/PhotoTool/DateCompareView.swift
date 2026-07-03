@@ -6,10 +6,11 @@ import SQLite3
 
 struct DateGroup: Identifiable {
     let id            = UUID()
-    let key:           String   // "yyyy-MM-dd"
+    let key:           String   // check-in session range: "startCoreTs|endCoreTs"
     let date:          Date
-    let displayString: String   // "3 Jun 2026  (6 photos)"
+    let displayString: String   // "3 Jul 2026, 08:15  ·  6 photos"
     let count:         Int
+    var showTime:      Bool = false   // true when its day has >1 session
 }
 
 // MARK: - Loader
@@ -64,8 +65,8 @@ final class DateCompareLoader: ObservableObject {
                 let rows  = DateCompareLoader.queryPhotosOnDate(contact: contact, dateKey: group.key)
                 let count = WhatsAppMediaLoader.dedupHDDuplicates(rows).count
                 return DateGroup(key: group.key, date: group.date,
-                                 displayString: DateCompareLoader.dateDisplay(group.date, count: count),
-                                 count: count)
+                                 displayString: DateCompareLoader.dateDisplay(group.date, count: count, withTime: group.showTime),
+                                 count: count, showTime: group.showTime)
             }
         }.value
         guard latestDatesRequest == contact else { return }
@@ -94,6 +95,15 @@ final class DateCompareLoader: ObservableObject {
 
     // MARK: SQLite
 
+    /// Photos sent more than this far apart start a new "check-in session". Lets clients who
+    /// check in several times a day (e.g. show prep) be picked by time, not just by date.
+    private static let sessionGapSeconds: Double = 2 * 3600
+
+    /// Groups a contact's incoming photos into check-in sessions, splitting a day wherever
+    /// there's a >2h gap. Each session's `key` encodes its Core Data time range
+    /// ("start|end") so `queryPhotosOnDate` can fetch exactly that session — the pickers and
+    /// loaders don't need to change. Days with a single session read as before; days with more
+    /// than one also show the time.
     nonisolated static func queryDates(for contact: String) -> [DateGroup] {
         var db: OpaquePointer?
         guard sqlite3_open_v2(WhatsAppMediaLoader.dbPath, &db,
@@ -101,9 +111,7 @@ final class DateCompareLoader: ObservableObject {
         defer { sqlite3_close(db) }
 
         let sql = """
-            SELECT strftime('%Y-%m-%d', (m.ZMESSAGEDATE+978307200), 'unixepoch','localtime') AS d,
-                   COUNT(*) AS cnt,
-                   MIN(m.ZMESSAGEDATE+978307200) AS minTs
+            SELECT m.ZMESSAGEDATE
             FROM ZWAMESSAGE m
             JOIN ZWAMEDIAITEM mi ON mi.ZMESSAGE = m.Z_PK
             JOIN ZWACHATSESSION cs ON cs.Z_PK = m.ZCHATSESSION
@@ -111,7 +119,7 @@ final class DateCompareLoader: ObservableObject {
               AND m.ZISFROMME = 0
               AND (mi.ZMEDIALOCALPATH LIKE '%.jpg'  OR mi.ZMEDIALOCALPATH LIKE '%.jpeg'
                 OR mi.ZMEDIALOCALPATH LIKE '%.png'  OR mi.ZMEDIALOCALPATH LIKE '%.heic')
-            GROUP BY d ORDER BY d DESC
+            ORDER BY m.ZMESSAGEDATE ASC
             """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
@@ -120,27 +128,55 @@ final class DateCompareLoader: ObservableObject {
         let TR = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         sqlite3_bind_text(stmt, 1, contact, -1, TR)
 
-        var out: [DateGroup] = []
+        // Cluster the (ascending) timestamps into sessions by the gap threshold. Timestamps are
+        // Core Data epoch (seconds since 2001); +978307200 converts to unix.
+        struct Sess { var start: Double; var end: Double; var count: Int }
+        var sessions: [Sess] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            guard let k = sqlite3_column_text(stmt, 0) else { continue }
-            let key   = String(cString: k)
-            let count = Int(sqlite3_column_int(stmt, 1))
-            let date  = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 2))
-            out.append(DateGroup(key: key, date: date,
-                                 displayString: dateDisplay(date, count: count), count: count))
+            let t = sqlite3_column_double(stmt, 0)
+            if var last = sessions.last, t - last.end <= sessionGapSeconds {
+                last.end = t; last.count += 1; sessions[sessions.count - 1] = last
+            } else {
+                sessions.append(Sess(start: t, end: t, count: 1))
+            }
         }
-        return out
+        guard !sessions.isEmpty else { return [] }
+
+        // A day with more than one session shows the time on each entry.
+        let cal = Calendar.current
+        func day(_ coreTs: Double) -> Date { cal.startOfDay(for: Date(timeIntervalSince1970: coreTs + 978307200)) }
+        var sessionsPerDay: [Date: Int] = [:]
+        for s in sessions { sessionsPerDay[day(s.start), default: 0] += 1 }
+
+        // Most-recent first.
+        return sessions.reversed().map { s in
+            let date = Date(timeIntervalSince1970: s.start + 978307200)
+            let showTime = (sessionsPerDay[day(s.start)] ?? 1) > 1
+            return DateGroup(key: "\(s.start)|\(s.end)", date: date,
+                             displayString: dateDisplay(date, count: s.count, withTime: showTime),
+                             count: s.count, showTime: showTime)
+        }
     }
 
     private static let dateDisplayFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "d MMM yyyy"; return f
     }()
+    private static let timeDisplayFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
+    }()
 
-    nonisolated static func dateDisplay(_ date: Date, count: Int) -> String {
-        "\(dateDisplayFmt.string(from: date))  ·  \(count) photo\(count == 1 ? "" : "s")"
+    nonisolated static func dateDisplay(_ date: Date, count: Int, withTime: Bool = false) -> String {
+        let stamp = withTime
+            ? "\(dateDisplayFmt.string(from: date)), \(timeDisplayFmt.string(from: date))"
+            : dateDisplayFmt.string(from: date)
+        return "\(stamp)  ·  \(count) photo\(count == 1 ? "" : "s")"
     }
 
     nonisolated static func queryPhotosOnDate(contact: String, dateKey: String) -> [WhatsAppMediaItem] {
+        // dateKey is a session range "startCoreTs|endCoreTs" produced by queryDates.
+        let parts = dateKey.split(separator: "|")
+        guard parts.count == 2, let startTs = Double(parts[0]), let endTs = Double(parts[1]) else { return [] }
+
         var db: OpaquePointer?
         guard sqlite3_open_v2(WhatsAppMediaLoader.dbPath, &db,
                               SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else { return [] }
@@ -153,7 +189,7 @@ final class DateCompareLoader: ObservableObject {
             JOIN ZWACHATSESSION cs ON cs.Z_PK = m.ZCHATSESSION
             WHERE cs.ZPARTNERNAME = ?
               AND m.ZISFROMME = 0
-              AND strftime('%Y-%m-%d',(m.ZMESSAGEDATE+978307200),'unixepoch','localtime') = ?
+              AND m.ZMESSAGEDATE >= ? AND m.ZMESSAGEDATE <= ?
               AND (mi.ZMEDIALOCALPATH LIKE '%.jpg'  OR mi.ZMEDIALOCALPATH LIKE '%.jpeg'
                 OR mi.ZMEDIALOCALPATH LIKE '%.png'  OR mi.ZMEDIALOCALPATH LIKE '%.heic')
             ORDER BY m.ZMESSAGEDATE ASC
@@ -164,7 +200,8 @@ final class DateCompareLoader: ObservableObject {
 
         let TR = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         sqlite3_bind_text(stmt, 1, contact, -1, TR)
-        sqlite3_bind_text(stmt, 2, dateKey, -1, TR)
+        sqlite3_bind_double(stmt, 2, startTs)
+        sqlite3_bind_double(stmt, 3, endTs)
 
         var out: [WhatsAppMediaItem] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
