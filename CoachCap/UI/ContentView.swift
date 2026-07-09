@@ -3,11 +3,18 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @ObservedObject private var licenseManager = LicenseManager.shared
     @State private var showTranslocationAlert = false
 
     var body: some View {
         if showTranslocationAlert {
             translocatedAlert
+        } else if !licenseManager.isUnlocked {
+            // No active licence (trial or paid) → the whole app is behind the trial. This is the
+            // single gate: recording, the WhatsApp browser, before/after and export are all
+            // unreachable until a trial is started, so no feature can be used for free.
+            trialWall
+                .onAppear { checkTranslocation() }
         } else {
             VStack(spacing: 0) {
                 topTabBar
@@ -53,6 +60,44 @@ struct ContentView: View {
         .padding(.vertical, 7)
         .background(Brand.bg)
         .overlay(Rectangle().fill(Brand.border).frame(height: 1), alignment: .bottom)
+    }
+
+    /// Shown when there's no active licence — the trial gate for the whole app.
+    private var trialWall: some View {
+        ZStack {
+            Brand.bg.ignoresSafeArea()
+            VStack(spacing: 20) {
+                Text("coachcam")
+                    .font(Brand.font(38, .bold))
+                    .foregroundStyle(Brand.text)
+                Text("better client check-ins — free for \(LicenseManager.trialDays) days")
+                    .font(Brand.font(16))
+                    .foregroundStyle(Brand.muted)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    wallBullet("record your screen + face in one clip")
+                    wallBullet("compare check-in photos side by side, live")
+                    wallBullet("pull client photos straight from whatsapp")
+                    wallBullet("works fully offline")
+                }
+                .padding(.top, 6)
+
+                LicenseView(licenseManager: licenseManager)
+                    .frame(maxWidth: 440)
+                    .padding(.top, 8)
+            }
+            .frame(maxWidth: 480)
+            .padding(40)
+        }
+        .frame(minWidth: 1120, idealWidth: 1240, minHeight: 700, idealHeight: 780)
+    }
+
+    private func wallBullet(_ text: String) -> some View {
+        HStack(spacing: 11) {
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(Brand.accent)
+            Text(text).font(Brand.font(14)).foregroundStyle(Brand.text)
+            Spacer()
+        }
     }
 
     private var translocatedAlert: some View {

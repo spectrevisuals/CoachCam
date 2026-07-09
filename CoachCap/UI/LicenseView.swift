@@ -4,9 +4,6 @@ struct LicenseView: View {
     @ObservedObject var licenseManager: LicenseManager
     @State private var keyInput = ""
 
-    /// Polar checkout — opened in the browser when a trial user wants to subscribe.
-    private static let checkoutURL = URL(string: "https://buy.polar.sh/polar_cl_rf4EFLjwPqaFRTBHdOoP5xFyduURSpTP6V7VP2DSj0d")!
-
     var body: some View {
         if licenseManager.isUnlocked {
             activeBar
@@ -56,11 +53,21 @@ struct LicenseView: View {
 
     private var trialBox: some View {
         VStack(spacing: 8) {
-            Text("free plan · \(RecordingQuota.remaining()) of \(FreeTier.maxRecordingsPerMonth) recordings left this month · 2-min limit · watermark")
+            Button {
+                NSWorkspace.shared.open(LicenseManager.checkoutURL)
+            } label: {
+                Text("start your \(LicenseManager.trialDays)-day free trial")
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .help("Opens the CoachCam checkout — full access free for \(LicenseManager.trialDays) days, no charge until it ends.")
+
+            Text("full access · £19.99/mo after the trial · cancel anytime")
                 .font(Brand.font(12))
                 .foregroundStyle(Brand.muted)
+
+            // For coaches who've started the trial and received their key by email.
             HStack(spacing: 10) {
-                TextField("license key", text: $keyInput)
+                TextField("paste your licence key", text: $keyInput)
                     .textFieldStyle(.plain)
                     .font(Brand.font(13))
                     .foregroundStyle(Brand.text)
@@ -86,13 +93,6 @@ struct LicenseView: View {
                     .foregroundStyle(Brand.danger)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Link(destination: Self.checkoutURL) {
-                Text("no licence key yet? subscribe · £19.99/mo")
-                    .font(Brand.font(12))
-                    .foregroundStyle(Brand.accent)
-            }
-            .buttonStyle(.plain)
-            .help("Open the CoachCam subscription checkout in your browser.")
         }
     }
 

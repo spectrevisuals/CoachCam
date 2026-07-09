@@ -23,7 +23,7 @@ struct WatermarkedImage: View {
     }
 
     private func update() {
-        rendered = license.isUnlocked ? image : WatermarkRenderer.apply(to: image)
+        rendered = image   // watermark removed — full-access trial/paid model, no free tier
     }
 }
 

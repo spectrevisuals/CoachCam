@@ -19,6 +19,10 @@ nastiest regressions live.
 - [ ] Pause → resume → stop → audio and video stay in sync, no gap/overlap.
 - [ ] Modes: **screen-only**, **webcam-only**, and **float-cam** each record and save correctly.
 
+## Licensing / trial gate
+- [ ] **Licensed** (trial or paid): full app — record, WhatsApp browser, before/after, export all work, **no watermark**, no recording cap.
+- [ ] **Unlicensed** (deactivate to test): the whole app is replaced by the **"start your 28-day free trial"** wall — no tabs, no WhatsApp, no export reachable. Re-activating a key restores full access. *(Trial replaced the old 10-recordings/2-min/watermark freemium; the wall is the single gate so no feature can leak.)*
+
 ## Recording — behaviour / settings
 - [ ] Auto-hide **defaults ON on the recorder screen** (window minimises on record) and **OFF on the before/after screen** (window stays visible). Each screen's toggle works independently and persists.
 - [ ] On a save failure, `~/Movies/CoachCap/CoachCam-error-log.txt` gets a line with the real reason + free disk space + per-track sample counts.

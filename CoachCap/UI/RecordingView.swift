@@ -16,7 +16,7 @@ struct RecordingView: View {
     @State private var annotationOverlay = AnnotationOverlay()
     @State private var showLowStorageAlert = false
     @State private var freeGBText = ""
-    @State private var showQuotaAlert = false
+    @State private var showTrialAlert = false
 
     /// The window we hid for the current recording, so we can bring it back on stop.
     @State private var recordingWindow: NSWindow? = nil
@@ -101,10 +101,11 @@ struct RecordingView: View {
         } message: {
             Text("Only \(freeGBText) GB free on this Mac. Recordings use about 30 MB per minute, so a long check-in could fail and be lost. Free up some space to be safe.")
         }
-        .alert("Monthly limit reached", isPresented: $showQuotaAlert) {
-            Button("OK", role: .cancel) { }
+        .alert("Start your \(LicenseManager.trialDays)-day free trial", isPresented: $showTrialAlert) {
+            Button("Start free trial") { NSWorkspace.shared.open(LicenseManager.checkoutURL) }
+            Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Free accounts can make \(FreeTier.maxRecordingsPerMonth) recordings per calendar month, and you've used them all. Your count resets on the 1st. Upgrade for unlimited recordings.")
+            Text("Get full access to CoachCam free for \(LicenseManager.trialDays) days. You won't be charged until the trial ends, and you can cancel anytime. Your licence key arrives by email — paste it on the licence screen to unlock.")
         }
     }
 
@@ -561,9 +562,10 @@ struct RecordingView: View {
     private func startWithCountdown() {
         guard !appState.isSaving, appState.countdownValue == nil else { return }
 
-        // Free-tier monthly recording cap (gated on the single licence source).
-        if !licenseManager.isUnlocked && !RecordingQuota.canRecord() {
-            showQuotaAlert = true
+        // Recording requires an active licence (trial or paid). No licence → prompt to start
+        // the free trial rather than record.
+        if !licenseManager.isUnlocked {
+            showTrialAlert = true
             return
         }
 
@@ -653,8 +655,6 @@ struct RecordingView: View {
                 appState.isRecording = true
                 appState.startTimer()
                 hideMainWindowForRecording()
-                // Count this recording against the free monthly quota (paid = unlimited).
-                if !licenseManager.isUnlocked { RecordingQuota.recordOne() }
             } catch {
                 appState.errorMessage = error.localizedDescription
             }

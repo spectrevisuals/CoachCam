@@ -19,10 +19,16 @@ import Foundation
 @MainActor
 final class LicenseManager: ObservableObject {
 
-    /// The ONE shared licence state for the whole app. Every free-tier gate (recording
-    /// length cap, monthly recording count, watermark) reads `LicenseManager.shared.isUnlocked`
-    /// — a single source so paid/free can never drift between the three limits.
+    /// The ONE shared licence state for the whole app. Everything the trial gates (recording and
+    /// photo export) reads `LicenseManager.shared.isUnlocked` — a single source of truth.
     static let shared = LicenseManager()
+
+    /// Length of the free trial (configured on the Polar product; shown in copy). The app itself
+    /// is trial-length-agnostic — it only knows "licence active vs not".
+    static let trialDays = 28
+    /// Polar checkout — starts the 28-day trial (card collected, not charged until day 28) and
+    /// emails a licence key to paste in. Opened when an unlicensed user hits a gate.
+    static let checkoutURL = URL(string: "https://buy.polar.sh/polar_cl_rf4EFLjwPqaFRTBHdOoP5xFyduURSpTP6V7VP2DSj0d")!
 
     // UI-facing surface — `isUnlocked == true` means PAID (valid Polar licence).
     @Published private(set) var isUnlocked = false

@@ -27,6 +27,7 @@ struct PhotoToolView: View {
     @State private var exportClientName    = ""
     @State private var annotationImage:    NSImage? = nil
     @State private var showAnnotation      = false
+    @State private var showTrialAlert      = false
     @ObservedObject private var licenseManager = LicenseManager.shared
     @EnvironmentObject private var appState: AppState
 
@@ -58,6 +59,12 @@ struct PhotoToolView: View {
                     } ?? "comparison_annotated.jpg"
                 )
             }
+        }
+        .alert("Start your \(LicenseManager.trialDays)-day free trial", isPresented: $showTrialAlert) {
+            Button("Start free trial") { NSWorkspace.shared.open(LicenseManager.checkoutURL) }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Get full access to CoachCam free for \(LicenseManager.trialDays) days — no charge until it ends, cancel anytime. Your licence key arrives by email; paste it on the licence screen to unlock.")
         }
     }
 
@@ -320,17 +327,16 @@ struct PhotoToolView: View {
     private func next() { if current < pairs.count - 1 { current += 1 } }
 
     private func save() {
+        // Exporting requires an active licence (trial or paid).
+        guard licenseManager.isUnlocked else { showTrialAlert = true; return }
         isSaving = true; errorMsg = nil
         let opts      = makeOptions()
         let pairsSnap = pairs.map { ($0.before, $0.after) }
-        let isPaid    = licenseManager.isUnlocked   // single licence source
         Task.detached(priority: .userInitiated) {
             do {
-                guard var img = PhotoStitcher.stitch(pairs: pairsSnap, options: opts) else {
+                guard let img = PhotoStitcher.stitch(pairs: pairsSnap, options: opts) else {
                     throw StitchError.renderFailed
                 }
-                // Free tier: watermark the comparison (same function as the preview).
-                if !isPaid { img = WatermarkRenderer.apply(to: img) }
                 let url = PhotoStitcher.autoOutputURL()
                 try PhotoStitcher.exportJPEG(img, to: url)
                 await MainActor.run { savedURL = url; annotationImage = img; isSaving = false }
@@ -366,8 +372,7 @@ private struct PhotoPanel: View {
     @State private var displayImage: NSImage?
 
     private func updateDisplay() {
-        guard let img = image else { displayImage = nil; return }
-        displayImage = license.isUnlocked ? img : WatermarkRenderer.apply(to: img)
+        displayImage = image
     }
 
     var body: some View {
