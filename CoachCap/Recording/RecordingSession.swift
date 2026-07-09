@@ -106,6 +106,9 @@ final class RecordingSession: NSObject, ObservableObject {
     /// the finalized result is ready when RecordingView reacts).
     private func teardownCapture() async {
         isPaused = false
+        lastVideoAdvanceAt = 0
+        lastVideoCount = 0
+        simulateStallDeadline = 0
         freeTimerTask?.cancel()
         recordingTimeRemaining = nil
         watchdogTask?.cancel(); watchdogTask = nil
@@ -180,6 +183,27 @@ final class RecordingSession: NSObject, ObservableObject {
                 try? await Task.sleep(for: .seconds(1))
                 guard let self, self.isRunning, self.pendingInterruptionReason == nil else { continue }
                 let now = ProcessInfo.processInfo.systemUptime
+                // Video-stall guard. The screen feed can silently stop delivering frames (no
+                // error), so the recording captures nothing yet "looks" like it's running — this
+                // is how a long check-in gets lost. Watch the frame count: reset the timer each
+                // time it advances; if it hasn't moved for `videoStallSeconds`, capture is dead —
+                // stop and tell the coach, instead of filming the whole session into the void.
+                // Catches both "no frames ever" and "died after a couple of frames".
+                if !self.isPaused, self.lastVideoAdvanceAt > 0 {
+                    if self.videoSampleCount != self.lastVideoCount {
+                        self.lastVideoCount = self.videoSampleCount
+                        self.lastVideoAdvanceAt = now
+                    } else {
+                        // Zero frames from the start is unambiguously dead capture (even a static
+                        // screen yields a first frame instantly) → catch fast. A few frames then
+                        // frozen could be a momentary hiccup → give it the full window.
+                        let limit = self.videoSampleCount == 0 ? 8.0 : self.videoStallSeconds
+                        if now - self.lastVideoAdvanceAt > limit {
+                            self.captureInterrupted("CoachCam stopped receiving screen video from your Mac.")
+                            continue
+                        }
+                    }
+                }
                 // Mic was delivering audio, now silent for >3s.
                 if self.lastMicSampleAt > 0, now - self.lastMicSampleAt > 3 {
                     self.captureInterrupted("Your microphone stopped sending audio.")
@@ -201,6 +225,8 @@ final class RecordingSession: NSObject, ObservableObject {
         pendingInterruptionReason = reason
         NSLog("WARN: capture interrupted mid-recording — \(reason)")
         Self.appendErrorLog("capture interrupted mid-recording — \(reason)")
+        DiagnosticsReporter.report("🟠 recording interrupted",
+            detail: "\(reason)\nsamples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]")
         Task { await endUnexpectedly() }
     }
 
@@ -226,6 +252,18 @@ final class RecordingSession: NSObject, ObservableObject {
     // Polls camera/mic data-arrival times so a dropped device is caught in ~3-5s instead of
     // waiting for macOS's (often ~10s) USB-disconnect notification.
     private var watchdogTask: Task<Void, Never>?
+    // Video-stall detection. The screen feed (SCStream) can silently die — stop delivering
+    // frames with NO error callback — leaving the app "recording" nothing for the whole session
+    // and losing it at finalize. We watch the video frame count: if it stops advancing for
+    // `videoStallSeconds`, capture is dead and we stop + warn instead of losing a long check-in.
+    // This catches both "no frames ever" (count stuck at 0) and "died after a few frames".
+    private var lastVideoCount: Int = 0
+    private var lastVideoAdvanceAt: Double = 0
+    private let videoStallSeconds: Double = 20
+    // DEV/TEST ONLY: when the hidden key `simulateVideoStallAfterSeconds` is set, stop feeding
+    // the writer video after that many seconds — reproduces a silent SCStream death so the
+    // stall-watchdog can be verified without touching permissions. 0 = off (normal behaviour).
+    nonisolated(unsafe) private var simulateStallDeadline: Double = 0
     // Set when capture is interrupted by a device drop, so finalize can tell the coach why.
     private var pendingInterruptionReason: String?
 
@@ -426,6 +464,10 @@ final class RecordingSession: NSObject, ObservableObject {
 
         isRunning = true
         isPaused  = false
+        lastVideoCount = 0
+        lastVideoAdvanceAt = ProcessInfo.processInfo.systemUptime
+        let simSecs = UserDefaults.standard.integer(forKey: "simulateVideoStallAfterSeconds")
+        simulateStallDeadline = simSecs > 0 ? ProcessInfo.processInfo.systemUptime + Double(simSecs) : 0
         startWatchdog()
         // Note any active camera video-effects (Reactions/Portrait/etc.) — they can't be
         // disabled programmatically but can destabilise capture, so record them for triage.
@@ -449,6 +491,9 @@ final class RecordingSession: NSObject, ObservableObject {
     func resume() {
         guard isRunning, isPaused else { return }
         isPaused = false
+        // Don't let paused time count toward the video-stall timeout.
+        lastVideoCount = videoSampleCount
+        lastVideoAdvanceAt = ProcessInfo.processInfo.systemUptime
         let now = CMClockGetTime(CMClockGetHostTimeClock())
         locked {
             if let ps = $0.pauseStart {
@@ -593,6 +638,8 @@ final class RecordingSession: NSObject, ObservableObject {
         lastSaveError = full
         NSLog("ERROR: recording failed to save — \(full) — writer.error=\(String(describing: error))")
         Self.appendErrorLog("save failed — \(full) | writer.error=\(String(describing: error))")
+        DiagnosticsReporter.report("🔴 recording SAVE FAILED",
+            detail: "\(full)\nsamples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]\nwriter.error=\(String(describing: error))")
 
         // Preserve the partial: rename to .unfinished.mp4 so it doesn't masquerade as a good
         // recording but is still there for recovery/inspection.
@@ -772,6 +819,8 @@ extension RecordingSession: SCStreamOutput {
 
     nonisolated private func handleVideoFrame(_ sample: CMSampleBuffer) {
         guard !writerDidFail() else { return }
+        // DEV/TEST: simulate a silent screen-feed death so the stall-watchdog can be verified.
+        if simulateStallDeadline > 0, ProcessInfo.processInfo.systemUptime > simulateStallDeadline { return }
         guard let vi = vidInput, vi.isReadyForMoreMediaData else { return }
         let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
 

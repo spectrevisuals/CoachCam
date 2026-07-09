@@ -381,6 +381,18 @@ struct RecordingView: View {
                 .buttonStyle(OutlineButtonStyle(active: appState.isAnnotating))
                 .help("Draw lines over anything on screen. Tap, then drag to draw. Tap again to stop.")
 
+                // Pen vs straight-line, shown only while drawing.
+                if appState.isAnnotating {
+                    Button { toggleStraightLine() } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: appState.annotationStraightLine ? "line.diagonal" : "scribble.variable")
+                            Text(appState.annotationStraightLine ? "line" : "pen")
+                        }
+                    }
+                    .buttonStyle(OutlineButtonStyle(active: appState.annotationStraightLine))
+                    .help("Switch between a straight line and freehand pen (or hold Shift for a straight line)")
+                }
+
                 Button { annotationOverlay.clear() } label: {
                     Image(systemName: "eraser")
                 }
@@ -863,6 +875,13 @@ struct RecordingView: View {
         annotationOverlay.onExitDrawing = { appState.isAnnotating = false }
         appState.isAnnotating.toggle()
         annotationOverlay.setDrawing(appState.isAnnotating)
+        annotationOverlay.setStraightLine(appState.annotationStraightLine)   // keep tool in sync
+    }
+
+    /// Switch the on-screen draw tool between freehand pen and straight line.
+    private func toggleStraightLine() {
+        appState.annotationStraightLine.toggle()
+        annotationOverlay.setStraightLine(appState.annotationStraightLine)
     }
 
     private func makeFloatingPanel() -> FloatingCameraPanel {
@@ -879,6 +898,7 @@ struct RecordingView: View {
                 onSkipCountdown: { skipCountdown() },
                 onCustomArea: { toggleCustomArea() },
                 onAnnotateToggle: { toggleAnnotate() },
+                onToggleStraightLine: { toggleStraightLine() },
                 onClearAnnotations: { annotationOverlay.clear() }
             )
             return panel

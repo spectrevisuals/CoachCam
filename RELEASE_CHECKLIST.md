@@ -14,6 +14,8 @@ nastiest regressions live.
 - [ ] **Pull the USB mic** mid-recording → recording stops within ~3–5 s, shows "Your microphone disconnected…", and **saves the part filmed so far** (video + audio).
 - [ ] **Pull the USB camera** mid-recording → stops, **no frozen face** burned into the tail, saves the partial.
 - [ ] Force a writer failure (e.g. revoke Screen Recording permission mid-record) → stops **immediately** with a clear reason, not a silent 0-byte file, and never "films 20 min → get 10 s".
+- [ ] **Video-stall watchdog:** arm `defaults write com.coachcam.app simulateVideoStallAfterSeconds -int 10`, record → at ~30 s it stops with "CoachCam stopped receiving screen video…", saves the first ~10 s, and (if a webhook is set) posts a 🟠 alert. Then `defaults delete …` to clear. *(Catches the silent SCStream death — `samples[video=0/2]` — that lost a 32-min check-in; regressed once as a `video==0`-only check that missed `video=2`.)*
+- [ ] A **normal** multi-minute recording does **not** trip the stall watchdog (frames flowing keep it quiet).
 - [ ] Pause → resume → stop → audio and video stay in sync, no gap/overlap.
 - [ ] Modes: **screen-only**, **webcam-only**, and **float-cam** each record and save correctly.
 

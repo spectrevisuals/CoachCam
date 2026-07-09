@@ -31,6 +31,9 @@ final class AnnotationOverlay {
 
     func clear() { canvas.clear() }
 
+    /// Switch between freehand pen (false) and straight-line (true) drawing.
+    func setStraightLine(_ on: Bool) { canvas.straightLine = on }
+
     /// Remove the overlay entirely (e.g. when recording ends).
     func teardown() {
         canvas.clear()
@@ -72,12 +75,16 @@ final class AnnotationWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 }
 
-/// Freehand pen. Renders committed strokes plus the one in progress.
+/// Freehand pen, or a straight line while Shift is held. Renders committed strokes plus the one
+/// in progress.
 final class AnnotationCanvasView: NSView {
     var drawingEnabled = false
+    /// When true, drags draw a straight line (same as holding Shift). Set from the tool toggle.
+    var straightLine = false
     var onEscape: (() -> Void)?
     private var strokes: [[NSPoint]] = []
     private var current:  [NSPoint]  = []
+    private var anchor:   NSPoint    = .zero   // start point of the in-progress stroke
 
     private let strokeColor = NSColor.systemRed
     private let strokeWidth: CGFloat = 4
@@ -94,12 +101,19 @@ final class AnnotationCanvasView: NSView {
 
     override func mouseDown(with e: NSEvent) {
         guard drawingEnabled else { return }
-        current = [convert(e.locationInWindow, from: nil)]
+        anchor  = convert(e.locationInWindow, from: nil)
+        current = [anchor]
         needsDisplay = true
     }
     override func mouseDragged(with e: NSEvent) {
         guard drawingEnabled else { return }
-        current.append(convert(e.locationInWindow, from: nil))
+        let pt = convert(e.locationInWindow, from: nil)
+        // Straight line if the line tool is on OR Shift is held; otherwise draw freehand.
+        if straightLine || e.modifierFlags.contains(.shift) {
+            current = [anchor, pt]
+        } else {
+            current.append(pt)
+        }
         needsDisplay = true
     }
     override func mouseUp(with e: NSEvent) {

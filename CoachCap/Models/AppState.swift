@@ -25,6 +25,9 @@ final class AppState: ObservableObject {
     // Draw-on-screen (annotation/telestrator) mode: when on, the coach can draw lines over
     // anything on screen; lines stay until cleared. Toggled from the recorder or float cam.
     @Published var isAnnotating = false
+    // Straight-line mode for draw-on-screen: when on, a drag draws a straight line instead of
+    // freehand. (Holding Shift while drawing does the same thing ad-hoc.)
+    @Published var annotationStraightLine = false
 
     // Loom-style "custom area": when set, only the screen content inside this rect is
     // recorded. Rect is in the target display's coordinate space (points, top-left origin,

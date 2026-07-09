@@ -16,6 +16,7 @@ final class FloatingCameraPanel: NSPanel {
          onSkipCountdown: @escaping () -> Void,
          onCustomArea: @escaping () -> Void,
          onAnnotateToggle: @escaping () -> Void,
+         onToggleStraightLine: @escaping () -> Void,
          onClearAnnotations: @escaping () -> Void) {
 
         super.init(
@@ -51,6 +52,7 @@ final class FloatingCameraPanel: NSPanel {
             onSkipCountdown: onSkipCountdown,
             onCustomArea: onCustomArea,
             onAnnotateToggle: onAnnotateToggle,
+            onToggleStraightLine: onToggleStraightLine,
             onClearAnnotations: onClearAnnotations,
             onClose: { [weak self] in self?.close() }
         ))
@@ -97,6 +99,7 @@ private struct FloatingCameraView: View {
     let onSkipCountdown: () -> Void
     let onCustomArea: () -> Void
     let onAnnotateToggle: () -> Void
+    let onToggleStraightLine: () -> Void
     let onClearAnnotations: () -> Void
     let onClose: () -> Void
 
@@ -265,6 +268,17 @@ private struct FloatingCameraView: View {
                 }
                 .buttonStyle(FloatButtonStyle(color: appState.isAnnotating ? Brand.accent2 : Color(white: 0.25)))
                 .help("Draw on screen — tap, then drag to draw lines. Tap again to stop drawing.")
+
+                // Pen vs straight-line tool — only while drawing, so the row stays uncluttered.
+                if appState.isAnnotating {
+                    Button(action: onToggleStraightLine) {
+                        Image(systemName: appState.annotationStraightLine ? "line.diagonal" : "scribble.variable")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(maxWidth: .infinity, minHeight: 34)
+                    }
+                    .buttonStyle(FloatButtonStyle(color: appState.annotationStraightLine ? Brand.accent : Color(white: 0.25)))
+                    .help("Straight line or freehand pen (Shift also draws a straight line)")
+                }
 
                 // Clear all drawn lines.
                 Button(action: onClearAnnotations) {

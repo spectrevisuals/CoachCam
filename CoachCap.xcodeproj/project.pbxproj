@@ -34,6 +34,7 @@
 		6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5047323346857C0344F8B834 /* ContentView.swift */; };
 		74C629C9E54499D2DE4B6167 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */; };
 		77CB74C3DB382FCD045F0FA3 /* Quicksand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4AF37094750898D0CD8C49BC /* Quicksand.ttf */; };
+		7FF2B00D41F13C18DDDB7750 /* DiagnosticsReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAA0A229405711DD89F21C2 /* DiagnosticsReporter.swift */; };
 		908780C54FA67B1611B2A594 /* FreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4A3F8262610CFE599FDEA7 /* FreeTier.swift */; };
 		9AF0544A8ABA5DF7BC29EA5C /* LemonSqueezyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */; };
 		A5FFAC23E15151B5D7638165 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BE0619DAD4023225A1B00 /* CameraPreviewView.swift */; };
@@ -79,6 +80,7 @@
 		8BE50919C3AE89BF3D2718BB /* DateCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCompareView.swift; sourceTree = "<group>"; };
 		92B8AD1DB8CBB1DF2EFE5BF2 /* CoachCap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoachCap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9949FD2C41F8BB91C270B93D /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
+		9DAA0A229405711DD89F21C2 /* DiagnosticsReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsReporter.swift; sourceTree = "<group>"; };
 		A4B52C7FF34D1CCBC74D8A24 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A75A1F318DEE96B9FDE2E6A6 /* RecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSession.swift; sourceTree = "<group>"; };
 		B864C8BD11ECF1A14B470ADF /* AIMatchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMatchEngine.swift; sourceTree = "<group>"; };
@@ -193,6 +195,7 @@
 				4E1517D193C3890A82133C57 /* AppSounds.swift */,
 				DDCA12EB0821EB2A466211D5 /* AppState.swift */,
 				6AF551BDB4CBF068A9EB91F0 /* DeviceIdentity.swift */,
+				9DAA0A229405711DD89F21C2 /* DiagnosticsReporter.swift */,
 				1D4A3F8262610CFE599FDEA7 /* FreeTier.swift */,
 				EB87094AD033A9921289BDE5 /* Keychain.swift */,
 				87FC50CA735CE8971D43A94E /* LemonSqueezyClient.swift */,
@@ -352,6 +355,7 @@
 				6E697E9B3D53AC73CE9A59B9 /* ContentView.swift in Sources */,
 				40A0229451EAB5D97F3C7163 /* DateCompareView.swift in Sources */,
 				74C629C9E54499D2DE4B6167 /* DeviceIdentity.swift in Sources */,
+				7FF2B00D41F13C18DDDB7750 /* DiagnosticsReporter.swift in Sources */,
 				238AD5A2F3258483354B78EC /* DisplayList.swift in Sources */,
 				2406C52DC94FABD46D9E08D2 /* ExportManager.swift in Sources */,
 				5BED838DFC1E2E8F3A0673FE /* FloatingCameraPanel.swift in Sources */,

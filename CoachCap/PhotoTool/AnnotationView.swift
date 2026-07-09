@@ -10,6 +10,9 @@ struct Stroke: Identifiable {
     var width:  CGFloat
 }
 
+/// Drawing tool: freehand pen (every point) or a straight line (just the two ends).
+enum AnnotationTool { case pen, line }
+
 // MARK: - View
 
 struct AnnotationView: View {
@@ -21,6 +24,7 @@ struct AnnotationView: View {
     @State private var activeStroke:  Stroke?  = nil
     @State private var strokeColor:   Color    = .red
     @State private var strokeWidth:   CGFloat  = 4
+    @State private var tool:          AnnotationTool = .pen
     @State private var canvasSize:    CGSize   = .zero
     @State private var savedURL:      URL?     = nil
 
@@ -47,6 +51,16 @@ struct AnnotationView: View {
                 Text(String(format: "%.0f", strokeWidth))
                     .font(.caption.monospacedDigit()).foregroundColor(.secondary).frame(width: 20)
             }
+
+            Divider().frame(height: 20)
+
+            // Pen (freehand) vs straight line
+            Picker("", selection: $tool) {
+                Image(systemName: "scribble.variable").tag(AnnotationTool.pen)
+                Image(systemName: "line.diagonal").tag(AnnotationTool.line)
+            }
+            .pickerStyle(.segmented).labelsHidden().frame(width: 92)
+            .help("Pen or straight line")
 
             Divider().frame(height: 20)
 
@@ -96,18 +110,37 @@ struct AnnotationView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { val in
-                        if activeStroke == nil {
-                            activeStroke = Stroke(points: [val.location],
+                        switch tool {
+                        case .pen:
+                            if activeStroke == nil {
+                                activeStroke = Stroke(points: [val.location],
+                                                      color: strokeColor,
+                                                      width: strokeWidth)
+                            } else {
+                                activeStroke?.points.append(val.location)
+                            }
+                        case .line:
+                            // Straight line: anchor at the press point, track the drag as the
+                            // other end — just two points, updated live.
+                            activeStroke = Stroke(points: [val.startLocation, val.location],
                                                   color: strokeColor,
                                                   width: strokeWidth)
-                        } else {
-                            activeStroke?.points.append(val.location)
                         }
                     }
                     .onEnded { val in
-                        if var s = activeStroke {
-                            s.points.append(val.location)
-                            strokes.append(s)
+                        switch tool {
+                        case .pen:
+                            if var s = activeStroke {
+                                s.points.append(val.location)
+                                strokes.append(s)
+                            }
+                        case .line:
+                            // Ignore a zero-length tap; otherwise commit the two-point line.
+                            if hypot(val.location.x - val.startLocation.x,
+                                     val.location.y - val.startLocation.y) > 2 {
+                                strokes.append(Stroke(points: [val.startLocation, val.location],
+                                                      color: strokeColor, width: strokeWidth))
+                            }
                         }
                         activeStroke = nil
                     }
