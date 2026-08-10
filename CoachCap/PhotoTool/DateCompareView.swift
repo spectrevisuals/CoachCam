@@ -34,6 +34,15 @@ final class DateCompareLoader: ObservableObject {
     @Published var isLoadingLeft     = false
     @Published var isLoadingRight    = false
 
+    // Generation guard for the expensive date-refine pass: bumped whenever a new client's dates
+    // start loading, so the previous client's refine (which hashes every photo across every date)
+    // bails out instead of running to completion and burning CPU after the coach has switched
+    // away. Lock-guarded so the detached refine can read it off the main thread.
+    private let genLock = NSLock()
+    nonisolated(unsafe) private var loadGen = 0
+    nonisolated private func bumpGen() -> Int { genLock.lock(); defer { genLock.unlock() }; loadGen += 1; return loadGen }
+    nonisolated private func genIsCurrent(_ g: Int) -> Bool { genLock.lock(); defer { genLock.unlock() }; return loadGen == g }
+
     init() { Task { await loadContacts() } }
 
     func loadContacts() async {
@@ -51,6 +60,7 @@ final class DateCompareLoader: ObservableObject {
     func loadDates(for contact: String) async {
         dates = []; leftPhotos = []; rightPhotos = []
         latestDatesRequest = contact
+        let gen = bumpGen()
 
         // Fast pass: raw per-date counts straight from SQL, so the dropdown appears at once.
         let raw = await Task.detached { DateCompareLoader.queryDates(for: contact) }.value
@@ -59,17 +69,22 @@ final class DateCompareLoader: ObservableObject {
 
         // Refine pass: recompute each count with HD/standard duplicates collapsed, so the
         // dropdown matches what's shown when a date is opened. Hashes are cached, so opening
-        // a date afterwards is instant.
-        let refined = await Task.detached(priority: .utility) {
-            raw.map { group -> DateGroup in
+        // a date afterwards is instant. Bails early if a newer client load has started, so we
+        // don't hash a whole client's photo history after the coach has switched away.
+        let refined: [DateGroup]? = await Task.detached(priority: .utility) { [weak self] in
+            var out: [DateGroup] = []
+            out.reserveCapacity(raw.count)
+            for group in raw {
+                guard self?.genIsCurrent(gen) ?? false else { return nil }
                 let rows  = DateCompareLoader.queryPhotosOnDate(contact: contact, dateKey: group.key)
                 let count = WhatsAppMediaLoader.dedupHDDuplicates(rows).count
-                return DateGroup(key: group.key, date: group.date,
-                                 displayString: DateCompareLoader.dateDisplay(group.date, count: count, withTime: group.showTime),
-                                 count: count, showTime: group.showTime)
+                out.append(DateGroup(key: group.key, date: group.date,
+                                     displayString: DateCompareLoader.dateDisplay(group.date, count: count, withTime: group.showTime),
+                                     count: count, showTime: group.showTime))
             }
+            return out
         }.value
-        guard latestDatesRequest == contact else { return }
+        guard let refined, latestDatesRequest == contact else { return }
         dates = refined
     }
 
@@ -244,13 +259,20 @@ struct BrowseView: View {
     // Free-text filter for the client picker (the list is long; recency order alone isn't
     // enough to find an older client quickly).
     @State private var contactSearch = ""
+    // Debounced copy of `contactSearch` that actually drives the filtered list. Each keystroke
+    // re-evaluates this whole view (which includes the photo panels), so filtering off the raw
+    // field made every character re-render the grids on the main thread — the source of the
+    // progressive beachball while searching. Debouncing coalesces a burst of typing into one
+    // update ~220ms after the coach stops, keeping the field itself responsive.
+    @State private var contactQuery = ""
+    @State private var searchDebounce: Task<Void, Never>?
     // Tracks search-field focus so we can hand keyboard control BACK to photo scrubbing
     // (A/D + arrows) the moment the coach is done searching — otherwise the field keeps
     // swallowing those keys.
     @FocusState private var searchFocused: Bool
 
     private var filteredContacts: [WAContact] {
-        let q = contactSearch.trimmingCharacters(in: .whitespaces).lowercased()
+        let q = contactQuery.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return contactLoader.contacts }
         return contactLoader.contacts.filter { $0.name.lowercased().contains(q) }
     }
@@ -270,6 +292,16 @@ struct BrowseView: View {
                             .textFieldStyle(.plain)
                             .frame(width: 120)
                             .focused($searchFocused)
+                            // Debounce filtering so a burst of typing doesn't re-render the photo
+                            // panels on every keystroke. Empty resets instantly (clearing feels snappy).
+                            .onChange(of: contactSearch) { _, v in
+                                searchDebounce?.cancel()
+                                if v.isEmpty { contactQuery = ""; return }
+                                searchDebounce = Task {
+                                    try? await Task.sleep(nanoseconds: 220_000_000)
+                                    if !Task.isCancelled { contactQuery = v }
+                                }
+                            }
                             // Return/Esc hand control back to photo scrubbing.
                             .onSubmit { dropSearchFocus() }
                             .onExitCommand { contactSearch = ""; dropSearchFocus() }

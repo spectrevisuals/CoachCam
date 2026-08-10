@@ -96,9 +96,18 @@ struct ExportManager {
             // otherwise we produce video-only rather than fail, but that's the last resort).
             var audioPair: (AVAssetReaderAudioMixOutput, AVAssetWriterInput)?
             if !validAudio.isEmpty {
+                // Preserve the recorded audio rate rather than forcing 44100 — the recorder now
+                // writes at the mic's native rate (commonly 48000), so re-encoding at 44100 here
+                // would add a needless resample. Fall back to 44100 if the rate can't be read.
+                var flatHz: Double = 44100
+                if let fmt = try? await validAudio[0].load(.formatDescriptions).first,
+                   let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(fmt) {
+                    let hz = asbd.pointee.mSampleRate
+                    if hz >= 8000, hz <= 192000 { flatHz = hz }
+                }
                 let pcm: [String: Any] = [
                     AVFormatIDKey:             kAudioFormatLinearPCM,
-                    AVSampleRateKey:           44100,
+                    AVSampleRateKey:           flatHz,
                     AVNumberOfChannelsKey:     2,
                     AVLinearPCMBitDepthKey:    16,
                     AVLinearPCMIsFloatKey:     false,
@@ -110,7 +119,7 @@ struct ExportManager {
                 if reader.canAdd(mixOut) { reader.add(mixOut) }
                 let aac: [String: Any] = [
                     AVFormatIDKey:         kAudioFormatMPEG4AAC,
-                    AVSampleRateKey:       44100,
+                    AVSampleRateKey:       flatHz,
                     AVNumberOfChannelsKey: 2,
                     AVEncoderBitRateKey:   128_000,   // matches RecordingConfig.audioBitrate
                 ]

@@ -50,6 +50,16 @@ final class RecordingSession: NSObject, ObservableObject {
     nonisolated(unsafe) private var videoSampleCount = 0
     nonisolated(unsafe) private var sysAudioSampleCount = 0
     nonisolated(unsafe) private var micSampleCount = 0
+    // Audio-timing diagnostics (audio-speed bug): actual sample rates from the buffers' format
+    // descriptions, total PCM sample counts, and the first adjusted PTS per audio track. From
+    // these the effective rate (totalSamples / timelineSpan) can be checked against the tagged
+    // rate to catch a sample-rate/clock mismatch. Purely observational — no behaviour change.
+    nonisolated(unsafe) private var sysAudioHz: Double = 0
+    nonisolated(unsafe) private var micAudioHz: Double = 0
+    nonisolated(unsafe) private var sysSampleTotal: Int64 = 0
+    nonisolated(unsafe) private var micSampleTotal: Int64 = 0
+    nonisolated(unsafe) private var sysFirstPTS = CMTime.invalid
+    nonisolated(unsafe) private var micFirstPTS = CMTime.invalid
     /// `ProcessInfo.systemUptime` of the last mic sample, for the device watchdog (0 until the
     /// first sample). Lets us notice a mic that stops sending audio within a few seconds,
     /// rather than waiting ~10s for macOS to post the USB-disconnect notification.
@@ -341,6 +351,8 @@ final class RecordingSession: NSObject, ObservableObject {
         lastSysEndPTS = .negativeInfinity
         lastMicEndPTS = .negativeInfinity
         videoSampleCount = 0; sysAudioSampleCount = 0; micSampleCount = 0
+        sysAudioHz = 0; micAudioHz = 0; sysSampleTotal = 0; micSampleTotal = 0
+        sysFirstPTS = .invalid; micFirstPTS = .invalid
         // Sync the burned-in mirror with the live setting. Without this the compositor keeps
         // its default (off) unless the user happens to toggle the mirror button, so the saved
         // video wouldn't mirror even though the preview (and the toggle) say it should.
@@ -576,7 +588,18 @@ final class RecordingSession: NSObject, ObservableObject {
         // usually reports a generic -11800 and buries the actual CoreMedia code under
         // NSUnderlyingErrorKey), plus per-track sample counts to spot a dropped/empty track.
         let underlying = (w.error as NSError?)?.userInfo[NSUnderlyingErrorKey]
-        let diag = "finalize status=\(w.status.rawValue) error=\(String(describing: w.error)) underlying=\(String(describing: underlying)) samples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]"
+        // Audio-timing diagnostics: effective rate = total PCM samples / timeline span. If it
+        // differs from the tagged/ASBD rate, that's the sample-rate/clock mismatch behind the
+        // audio-speed bug (e.g. audio ~2/3 of video ⇒ effHz ~2/3 of 44100).
+        let spanSys = (sysFirstPTS.isNumeric && lastSysEndPTS.isNumeric) ? CMTimeGetSeconds(CMTimeSubtract(lastSysEndPTS, sysFirstPTS)) : 0
+        let spanMic = (micFirstPTS.isNumeric && lastMicEndPTS.isNumeric) ? CMTimeGetSeconds(CMTimeSubtract(lastMicEndPTS, micFirstPTS)) : 0
+        let effSys = spanSys > 0 ? Double(sysSampleTotal) / spanSys : 0
+        let effMic = spanMic > 0 ? Double(micSampleTotal) / spanMic : 0
+        let audioDiag = " audioHz[sys=\(Int(sysAudioHz)) mic=\(Int(micAudioHz))]"
+            + " audioSamples[sys=\(sysSampleTotal) mic=\(micSampleTotal)]"
+            + " spanS[sys=\(String(format: "%.1f", spanSys)) mic=\(String(format: "%.1f", spanMic))]"
+            + " effHz[sys=\(Int(effSys)) mic=\(Int(effMic))]"
+        let diag = "finalize status=\(w.status.rawValue) error=\(String(describing: w.error)) underlying=\(String(describing: underlying)) samples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]" + audioDiag
         NSLog("DEBUG: \(diag)")
         Self.appendErrorLog(diag)
 
@@ -725,6 +748,20 @@ final class RecordingSession: NSObject, ObservableObject {
 
     // MARK: - Private setup
 
+    /// The selected mic's actual hardware sample rate (Hz), read from its active format, so we
+    /// can write audio at its native rate rather than assuming 44100. Falls back to 44100 if it
+    /// can't be read or looks invalid.
+    nonisolated static func deviceAudioRate(micID: String?) -> Double {
+        let dev = micID.flatMap { AVCaptureDevice(uniqueID: $0) } ?? AVCaptureDevice.default(for: .audio)
+        if let fmt = dev?.activeFormat.formatDescription,
+           CMFormatDescriptionGetMediaType(fmt) == kCMMediaType_Audio,
+           let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(fmt) {
+            let hz = asbd.pointee.mSampleRate
+            if hz >= 8000, hz <= 192000 { return hz }
+        }
+        return 44100
+    }
+
     private func setupWriter(config: RecordingConfig) throws {
         let w = try AVAssetWriter(outputURL: config.outputURL, fileType: .mp4)
         // Write the movie in periodic fragments. This makes the file on disk playable up to
@@ -753,9 +790,15 @@ final class RecordingSession: NSObject, ObservableObject {
                 kCVPixelBufferHeightKey as String: Int(config.videoSize.height),
             ])
 
+        // Write audio at the mic's ACTUAL hardware rate instead of assuming 44100. Most Macs'
+        // built-in mics (and SCStream system audio) run at 48000; forcing 44100 relied on
+        // AVAssetWriter silently resampling — fragile, and tied to the audio-speed bug. Reading
+        // the real rate keeps the timeline native (a no-op where the device is already 44100).
+        // Resampling always preserves duration, so this can never introduce a speed change.
+        let audioHz = Self.deviceAudioRate(micID: config.selectedMicID)
         let audioSettings: [String: Any] = [
             AVFormatIDKey:         kAudioFormatMPEG4AAC,
-            AVSampleRateKey:       44100,
+            AVSampleRateKey:       audioHz,
             AVNumberOfChannelsKey: 2,
             AVEncoderBitRateKey:   RecordingConfig.audioBitrate,
         ]
@@ -877,6 +920,10 @@ extension RecordingSession: SCStreamOutput {
             sysAudioSampleCount += 1
             let dur = CMSampleBufferGetDuration(adj)
             lastSysEndPTS = dur.isNumeric ? CMTimeAdd(adjPTS, dur) : adjPTS
+            // diagnostics only
+            if sysAudioHz == 0 { sysAudioHz = audioSampleRate(sample) }
+            if sysFirstPTS == .invalid { sysFirstPTS = adjPTS }
+            sysSampleTotal += Int64(CMSampleBufferGetNumSamples(sample))
         }
     }
 }
@@ -907,11 +954,23 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
             micSampleCount += 1
             let dur = CMSampleBufferGetDuration(adj)
             lastMicEndPTS = dur.isNumeric ? CMTimeAdd(adjPTS, dur) : adjPTS
+            // diagnostics only
+            if micAudioHz == 0 { micAudioHz = audioSampleRate(sample) }
+            if micFirstPTS == .invalid { micFirstPTS = adjPTS }
+            micSampleTotal += Int64(CMSampleBufferGetNumSamples(sample))
         }
     }
 }
 
 // MARK: - Helpers
+
+/// Actual sample rate carried by an audio buffer's format description (mSampleRate). Used only
+/// for diagnostics — to compare the real capture rate against the tagged 44100.
+private func audioSampleRate(_ sample: CMSampleBuffer) -> Double {
+    guard let fmt = CMSampleBufferGetFormatDescription(sample),
+          let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(fmt) else { return 0 }
+    return asbd.pointee.mSampleRate
+}
 
 /// Shifts an audio buffer onto the recording timeline while PRESERVING its real per-sample
 /// timing. The previous version collapsed every buffer to a single timing entry whose
