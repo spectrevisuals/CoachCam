@@ -21,6 +21,11 @@ final class AppState: ObservableObject {
     @Published var selectedCameraID: String? = nil
     @Published var selectedMicID: String? = nil
     @Published var selectedDisplayID: CGDirectDisplayID? = nil   // nil = primary
+    /// True once the coach explicitly picks a monitor from the dropdown. Until then the
+    /// selection FOLLOWS the screen the CoachCam window is on — "record what I'm looking at"
+    /// — because defaulting to the primary display made it too easy to record the wrong
+    /// monitor without noticing (a coach filmed half a session that way).
+    var userPickedDisplay = false
     @Published var webcamOnlyMode = false
     // Draw-on-screen (annotation/telestrator) mode: when on, the coach can draw lines over
     // anything on screen; lines stay until cleared. Toggled from the recorder or float cam.

@@ -50,18 +50,32 @@ enum WhatsAppShare {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = false   // background, so it doesn't cover Finder
 
-        // Open the client's specific chat if we can resolve their WhatsApp number…
+        // ALWAYS open WhatsApp itself first — previously, when the phone lookup succeeded but
+        // the whatsapp:// deep link silently failed (seen after a switch to a Business account),
+        // the app never opened at all and the button looked dead. Opening the app is the part
+        // that must never fail; the chat deep link is best-effort sugar on top.
+        if let wa = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            NSWorkspace.shared.openApplication(at: wa, configuration: config) { _, err in
+                if let err { RecordingSession.appendErrorLog("whatsapp open failed: \(err.localizedDescription)") }
+            }
+        } else {
+            RecordingSession.appendErrorLog("whatsapp send: app not found for \(bundleID)")
+        }
+
+        // Then deep-link to the client's chat if we can resolve their number (slight delay so
+        // the app is up before the link lands). A failure here is logged, not fatal.
         if let name = clientName?.trimmingCharacters(in: .whitespaces), !name.isEmpty,
            let phone = phoneNumber(forContactName: name),
            let chatURL = URL(string: "whatsapp://send?phone=\(phone)") {
-            NSWorkspace.shared.open(chatURL, configuration: config, completionHandler: nil)
-        } else if let wa = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            // …otherwise just open WhatsApp.
-            NSWorkspace.shared.openApplication(at: wa, configuration: config, completionHandler: nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                NSWorkspace.shared.open(chatURL, configuration: config) { _, err in
+                    if let err { RecordingSession.appendErrorLog("whatsapp deep link failed: \(err.localizedDescription)") }
+                }
+            }
         }
 
-        // Reveal slightly after, frontmost, so Finder ends up on top of WhatsApp.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        // Reveal after the app + link, frontmost, so Finder ends up on top of WhatsApp.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             ExportManager.revealInFinder(url)
             NSApp.deactivate()
         }

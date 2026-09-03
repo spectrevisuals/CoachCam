@@ -65,6 +65,43 @@ final class RecordingSession: NSObject, ObservableObject {
     /// rather than waiting ~10s for macOS to post the USB-disconnect notification.
     nonisolated(unsafe) private var lastMicSampleAt: Double = 0
 
+    // Mic true-rate correction (the audio-speed bug). Some mics/drivers deliver e.g. 32000 Hz
+    // audio while the format description still claims 48000 — written as 48000 it plays ~1.5×
+    // fast, choppy audio. Ground truth (packet analysis of a bad file — 53% of the track was
+    // micro-silence): the mic can start honest at 48000 and SWITCH mid-recording to a mode where
+    // buffers hold real-32000 data still labelled 48000 — each 512-sample buffer then covers
+    // only 2/3 of its real wall-clock gap, so the file is sped-up chunks + silence gaps. The
+    // switch time varies, so ANY fixed measurement window can be fooled (builds 51/53/54 all
+    // were). The fix is CONTINUOUS, per-buffer: measure each buffer's true rate from its actual
+    // PTS spacing (samples ÷ gap, EMA-smoothed); while it deviates, RESAMPLE the PCM itself to
+    // genuine 48000 filling the real gap — correct pitch, speed and no gaps. While honest, the
+    // path is the original one, byte-for-byte (strict no-op on working machines).
+    nonisolated(unsafe) private var micPrevRawPTS = CMTime.invalid   // previous buffer's raw PTS
+    nonisolated(unsafe) private var micRateEMA: Double = 0           // measured true delivery rate (5s window)
+    nonisolated(unsafe) private var micResampleActive = false        // currently correcting?
+    nonisolated(unsafe) private var micPlaceEnd = CMTime.invalid     // contiguous placement cursor (active mode)
+    nonisolated(unsafe) private var micCorrLogged = 0                // rate-limit correction logs
+    nonisolated(unsafe) private var micSpliced = 0                   // micro-overlap buffers spliced (diagnostic)
+    // 5-second measurement window for the true delivery rate: window jitter error ≈ ±0.01%,
+    // so the tight engage threshold (0.15%) is 15× above the noise floor — no false engages
+    // on healthy mics (typical crystal skew ≤0.01%), but real skew (MV7 ≈0.27%) is caught and
+    // resampled away so long recordings don't accumulate A/V drift.
+    nonisolated(unsafe) private var micWinStartPTS = CMTime.invalid
+    nonisolated(unsafe) private var micWinSamples: Int64 = 0
+
+    // ⚠️ THE actual audio-speed bug (proven from 14 builds of telemetry, 2026-09-02): the mic
+    // delivers a perfect 48000/s, but when the writer is busy (e.g. compositing a 4K display)
+    // its input accepts only ~62.5 buffers/s and `isReadyForMoreMediaData` is false for the
+    // rest — and the old guard SILENTLY DISCARDED those buffers. 94 offered − 62.5 accepted
+    // = exactly 2/3 surviving = audio at 2/3 length / 1.5× speed / micro-gap choppiness.
+    // Fix: NEVER discard for backpressure — queue the retimed buffer and drain when the input
+    // is ready again (all on micQueue, so no locking). On a healthy writer the outbox never
+    // grows and behaviour is identical to before.
+    nonisolated(unsafe) private var micOutbox: [CMSampleBuffer] = []
+    nonisolated(unsafe) private var micQueuedEvents = 0     // buffers that had to wait (diagnostic)
+    nonisolated(unsafe) private var micOutboxPeak = 0       // worst backlog seen (diagnostic)
+    nonisolated(unsafe) private var micDropMono = 0         // buffers dropped by the monotonic guard (diagnostic)
+
     // MARK: Mutable encode-thread state (always under captureLock)
     private let captureLock = NSLock()
     nonisolated(unsafe) private var cs = CS()
@@ -353,6 +390,10 @@ final class RecordingSession: NSObject, ObservableObject {
         videoSampleCount = 0; sysAudioSampleCount = 0; micSampleCount = 0
         sysAudioHz = 0; micAudioHz = 0; sysSampleTotal = 0; micSampleTotal = 0
         sysFirstPTS = .invalid; micFirstPTS = .invalid
+        micPrevRawPTS = .invalid; micRateEMA = 0
+        micResampleActive = false; micPlaceEnd = .invalid; micCorrLogged = 0
+        micOutbox = []; micQueuedEvents = 0; micOutboxPeak = 0; micDropMono = 0
+        micSpliced = 0; micWinStartPTS = .invalid; micWinSamples = 0
         // Sync the burned-in mirror with the live setting. Without this the compositor keeps
         // its default (off) unless the user happens to toggle the mirror button, so the saved
         // video wouldn't mirror even though the preview (and the toggle) say it should.
@@ -557,6 +598,13 @@ final class RecordingSession: NSObject, ObservableObject {
         // the file we just salvaged).
         if didFinalize { return finalizedURL }
         didFinalize = true
+        // Give the mic outbox a bounded chance to land any buffers the writer was too busy to
+        // take during capture — otherwise the tail of the recording would lose them.
+        for _ in 0..<100 {
+            micQueue.sync { drainMicOutbox() }
+            if micOutbox.isEmpty || writerDidFail() { break }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
         var result = await performFinalize()
         // Merge system-audio + mic into one track so the clip isn't silent in WhatsApp (which
         // plays only the first audio track). Also cleans up a fragmented partial into a normal
@@ -596,12 +644,24 @@ final class RecordingSession: NSObject, ObservableObject {
         let effSys = spanSys > 0 ? Double(sysSampleTotal) / spanSys : 0
         let effMic = spanMic > 0 ? Double(micSampleTotal) / spanMic : 0
         let audioDiag = " audioHz[sys=\(Int(sysAudioHz)) mic=\(Int(micAudioHz))]"
+            + " micQ[waited=\(micQueuedEvents) peak=\(micOutboxPeak) dropMono=\(micDropMono) spliced=\(micSpliced) left=\(micOutbox.count)]"
             + " audioSamples[sys=\(sysSampleTotal) mic=\(micSampleTotal)]"
             + " spanS[sys=\(String(format: "%.1f", spanSys)) mic=\(String(format: "%.1f", spanMic))]"
             + " effHz[sys=\(Int(effSys)) mic=\(Int(effMic))]"
         let diag = "finalize status=\(w.status.rawValue) error=\(String(describing: w.error)) underlying=\(String(describing: underlying)) samples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]" + audioDiag
         NSLog("DEBUG: \(diag)")
         Self.appendErrorLog(diag)
+
+        // Beta telemetry: if this recording shows ANY audio anomaly — an effective mic rate
+        // that disagrees with its declared rate (the audio-speed bug's signature), buffers
+        // dropped by the monotonic guard, the rate-correction resampler engaging, or leftover
+        // queued buffers — ping Discord with the raw numbers so a regression on ANY tester's
+        // machine surfaces within a day instead of via a client complaint. The diag string is
+        // counts and rates only; no filenames or client names.
+        let micRateOff = spanMic > 5 && micAudioHz > 0 && abs(effMic - micAudioHz) / micAudioHz > 0.03
+        if micRateOff || micDropMono > 50 || micResampleActive || !micOutbox.isEmpty {
+            DiagnosticsReporter.report("⚠️ audio anomaly at finalize (v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")/\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))", detail: diag)
+        }
 
         let interrupted = pendingInterruptionReason
 
@@ -748,19 +808,13 @@ final class RecordingSession: NSObject, ObservableObject {
 
     // MARK: - Private setup
 
-    /// The selected mic's actual hardware sample rate (Hz), read from its active format, so we
-    /// can write audio at its native rate rather than assuming 44100. Falls back to 44100 if it
-    /// can't be read or looks invalid.
-    nonisolated static func deviceAudioRate(micID: String?) -> Double {
-        let dev = micID.flatMap { AVCaptureDevice(uniqueID: $0) } ?? AVCaptureDevice.default(for: .audio)
-        if let fmt = dev?.activeFormat.formatDescription,
-           CMFormatDescriptionGetMediaType(fmt) == kCMMediaType_Audio,
-           let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(fmt) {
-            let hz = asbd.pointee.mSampleRate
-            if hz >= 8000, hz <= 192000 { return hz }
-        }
-        return 44100
-    }
+    /// The one audio sample rate the whole pipeline uses. We FORCE the microphone capture to
+    /// deliver this rate (see `setupMicCapture`) and write both audio tracks at it, so nothing
+    /// depends on the rate the device *reports*. This is the fix for the audio-speed bug: under
+    /// macOS "Voice Isolation" the built-in mic silently runs at 32000 Hz while still reporting
+    /// 48000 — audio tagged 48000 but really 32000 plays 1.5× fast (2/3 duration). Forcing the
+    /// capture format makes AVFoundation resample to a true 48000 regardless of the mic mode.
+    static let captureAudioRate: Double = 48000
 
     private func setupWriter(config: RecordingConfig) throws {
         let w = try AVAssetWriter(outputURL: config.outputURL, fileType: .mp4)
@@ -790,15 +844,13 @@ final class RecordingSession: NSObject, ObservableObject {
                 kCVPixelBufferHeightKey as String: Int(config.videoSize.height),
             ])
 
-        // Write audio at the mic's ACTUAL hardware rate instead of assuming 44100. Most Macs'
-        // built-in mics (and SCStream system audio) run at 48000; forcing 44100 relied on
-        // AVAssetWriter silently resampling — fragile, and tied to the audio-speed bug. Reading
-        // the real rate keeps the timeline native (a no-op where the device is already 44100).
-        // Resampling always preserves duration, so this can never introduce a speed change.
-        let audioHz = Self.deviceAudioRate(micID: config.selectedMicID)
+        // Write both audio tracks at the one forced capture rate (see `captureAudioRate`). The
+        // mic is forced to deliver this rate in `setupMicCapture`, and SCStream system audio runs
+        // at 48000 too, so nothing here relies on a device-reported rate that can lie under Voice
+        // Isolation. (Resampling always preserves duration, so a rate choice can't stretch audio.)
         let audioSettings: [String: Any] = [
             AVFormatIDKey:         kAudioFormatMPEG4AAC,
-            AVSampleRateKey:       audioHz,
+            AVSampleRateKey:       Self.captureAudioRate,
             AVNumberOfChannelsKey: 2,
             AVEncoderBitRateKey:   RecordingConfig.audioBitrate,
         ]
@@ -824,6 +876,19 @@ final class RecordingSession: NSObject, ObservableObject {
             s.addInput(inp)
         }
         let out = AVCaptureAudioDataOutput()
+        // FORCE the delivered format to true 48000 Hz PCM. Without this, macOS "Voice Isolation"
+        // can hand us 32000-Hz audio still LABELLED 48000 — which, written as 48000, plays 1.5×
+        // fast (the audio-speed bug). Setting audioSettings inserts a converter that produces a
+        // genuine 48000 stream from whatever the mic mode is doing, so the label can't lie.
+        out.audioSettings = [
+            AVFormatIDKey:             kAudioFormatLinearPCM,
+            AVSampleRateKey:           Self.captureAudioRate,
+            AVNumberOfChannelsKey:     2,
+            AVLinearPCMBitDepthKey:    16,
+            AVLinearPCMIsFloatKey:     false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+        ]
         out.setSampleBufferDelegate(self, queue: micQueue)
         if s.canAddOutput(out) { s.addOutput(out) }
         s.commitConfiguration()
@@ -936,7 +1001,58 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
                                     from connection: AVCaptureConnection) {
         lastMicSampleAt = ProcessInfo.processInfo.systemUptime   // device-alive heartbeat
         guard !writerDidFail() else { return }
-        guard let ma = micAudInput, ma.isReadyForMoreMediaData else { return }
+
+        let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
+        let n = CMSampleBufferGetNumSamples(sample)
+
+        // Continuous true-rate tracking over a rolling 5 s window (samples ÷ PTS span). The
+        // window makes per-buffer PTS jitter irrelevant (error ≈ ±0.01%), so sustained clock
+        // skew as small as 0.15% is detected reliably — that's what accumulates into audible
+        // A/V drift on long recordings — while healthy mics (skew ≤0.01%) never engage and
+        // stay on the bit-exact passthrough path. Hysteresis: engage >0.15%, release <0.05%.
+        if micPrevRawPTS.isNumeric, n > 0 {
+            let gap = CMTimeGetSeconds(CMTimeSubtract(rawPTS, micPrevRawPTS))
+            if gap <= 0 || gap > 0.5 {
+                // Stall/pause/jump — restart the measurement window.
+                micWinStartPTS = rawPTS; micWinSamples = 0
+            } else {
+                if !micWinStartPTS.isNumeric { micWinStartPTS = micPrevRawPTS }
+                micWinSamples += Int64(n)
+                let span = CMTimeGetSeconds(CMTimeSubtract(rawPTS, micWinStartPTS))
+                if span >= 5.0 {
+                    micRateEMA = Double(micWinSamples) / span
+                    micWinStartPTS = rawPTS; micWinSamples = 0   // slide the window
+                    let dev = abs(micRateEMA - Self.captureAudioRate) / Self.captureAudioRate
+                    if !micResampleActive, dev > 0.0015 {
+                        micResampleActive = true
+                        if micCorrLogged < 8 {
+                            micCorrLogged += 1
+                            Self.appendErrorLog("mic rate correction ON: true rate ≈ \(Int(micRateEMA)) Hz — resampling to \(Int(Self.captureAudioRate))")
+                        }
+                    } else if micResampleActive, dev < 0.0005 {
+                        micResampleActive = false
+                        if micCorrLogged < 8 {
+                            micCorrLogged += 1
+                            Self.appendErrorLog("mic rate correction OFF: true rate back to ≈ \(Int(micRateEMA)) Hz")
+                        }
+                    }
+                }
+            }
+        }
+        micPrevRawPTS = rawPTS
+
+        appendMic(sample)
+    }
+
+    /// Append one mic buffer. While the device is honest this is the ORIGINAL path, unchanged.
+    /// While it's lying (micResampleActive) the buffer's PCM is linear-resampled from the
+    /// measured true rate to a genuine 48000 and placed contiguously — the output covers the
+    /// same real time the audio actually took, so pitch, speed and continuity are all correct.
+    nonisolated private func appendMic(_ sample: CMSampleBuffer) {
+        // NOTE: no isReadyForMoreMediaData guard here — that guard was THE audio-speed bug
+        // (it silently discarded ~1/3 of mic buffers whenever the writer was busy). Buffers
+        // are now retimed and ENQUEUED; the outbox drains whenever the input is ready.
+        guard micAudInput != nil else { return }
         let rawPTS = CMSampleBufferGetPresentationTimeStamp(sample)
 
         let (isPaused, totalPaused, tZero, isFirst) = locked { s -> (Bool, CMTime, CMTime, Bool) in
@@ -949,16 +1065,70 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
         if isFirst { writer?.startSession(atSourceTime: .zero) }
 
         let adjPTS = CMTimeSubtract(CMTimeSubtract(rawPTS, tZero), totalPaused)
-        guard adjPTS.isNumeric, adjPTS >= .zero, adjPTS >= lastMicEndPTS else { return }
-        if let adj = retimed(sample, to: adjPTS), ma.append(adj) {
-            micSampleCount += 1
+        guard adjPTS.isNumeric, adjPTS >= .zero else { return }
+
+        if micResampleActive, micRateEMA > 1000 {
+            // Corrected path (kept as a second line of defence for a device that genuinely
+            // under-delivers): stretch this buffer's samples to genuine 48000 covering its real
+            // time, placed contiguously and monotonically.
+            var placePTS = micPlaceEnd.isNumeric ? micPlaceEnd : adjPTS
+            if placePTS < lastMicEndPTS { placePTS = lastMicEndPTS }
+            guard let adj = resampledMic(sample, to: placePTS, fromRate: micRateEMA, toRate: Self.captureAudioRate) else { return }
             let dur = CMSampleBufferGetDuration(adj)
-            lastMicEndPTS = dur.isNumeric ? CMTimeAdd(adjPTS, dur) : adjPTS
-            // diagnostics only
+            micPlaceEnd = dur.isNumeric ? CMTimeAdd(placePTS, dur) : placePTS
+            lastMicEndPTS = micPlaceEnd
             if micAudioHz == 0 { micAudioHz = audioSampleRate(sample) }
-            if micFirstPTS == .invalid { micFirstPTS = adjPTS }
-            micSampleTotal += Int64(CMSampleBufferGetNumSamples(sample))
+            if micFirstPTS == .invalid { micFirstPTS = placePTS }
+            enqueueMic(adj)
+            return
         }
+
+        // Honest path — but with SPLICE, not drop, on overlap. ⚠️ THE audio-speed bug (proven
+        // by harness reproduction, 2026-09-02): a mic whose clock runs fractions of a percent
+        // fast delivers each buffer ~29µs before the previous one's computed end; the old
+        // `guard adjPTS >= lastMicEndPTS else { drop }` then discarded 1/3–1/2 of ALL audio
+        // (dropMono=555 in the field logs). A micro-overlap is clock skew, not a duplicate —
+        // place the buffer contiguously after the previous one instead. Only a genuinely
+        // backwards timestamp (device re-enumeration, >0.5s) is still dropped.
+        var placePTS = adjPTS
+        if adjPTS < lastMicEndPTS {
+            let overlap = CMTimeGetSeconds(CMTimeSubtract(lastMicEndPTS, adjPTS))
+            guard overlap <= 0.5 else { micDropMono += 1; return }
+            placePTS = lastMicEndPTS
+            micSpliced += 1
+        }
+        if let adj = retimed(sample, to: placePTS) {
+            let dur = CMSampleBufferGetDuration(adj)
+            lastMicEndPTS = dur.isNumeric ? CMTimeAdd(placePTS, dur) : placePTS
+            if micAudioHz == 0 { micAudioHz = audioSampleRate(sample) }
+            if micFirstPTS == .invalid { micFirstPTS = placePTS }
+            // Keep the placement cursor in sync so a switch to corrected mode is seamless.
+            micPlaceEnd = lastMicEndPTS
+            enqueueMic(adj)
+        }
+    }
+
+    /// Queue one ready-to-append buffer and drain as much of the outbox as the writer will take.
+    /// Runs only on micQueue (the capture delegate's serial queue), so no locking is needed.
+    nonisolated private func enqueueMic(_ buf: CMSampleBuffer) {
+        if micOutbox.count >= 2048 { micOutbox.removeFirst() }   // ~20s hard cap; never hit on a live writer
+        if !micOutbox.isEmpty || !(micAudInput?.isReadyForMoreMediaData ?? false) {
+            micQueuedEvents += 1   // diagnostic: this buffer would have been DISCARDED by the old code
+        }
+        micOutbox.append(buf)
+        drainMicOutbox()
+    }
+
+    /// Append queued mic buffers while the writer input can take them.
+    nonisolated private func drainMicOutbox() {
+        guard let ma = micAudInput else { return }
+        while !micOutbox.isEmpty, ma.isReadyForMoreMediaData, !writerDidFail() {
+            let buf = micOutbox.removeFirst()
+            guard ma.append(buf) else { break }
+            micSampleCount += 1
+            micSampleTotal += Int64(CMSampleBufferGetNumSamples(buf))
+        }
+        micOutboxPeak = max(micOutboxPeak, micOutbox.count)
     }
 }
 
@@ -1011,6 +1181,75 @@ private func retimed(_ sample: CMSampleBuffer, to newPTS: CMTime) -> CMSampleBuf
     CMSampleBufferCreateCopyWithNewTiming(allocator: nil, sampleBuffer: sample,
         sampleTimingEntryCount: count, sampleTimingArray: &timings, sampleBufferOut: &out)
     return out
+}
+
+/// Linear-resample a 16-bit interleaved PCM buffer from its TRUE rate to `toRate`, keeping the
+/// format (still labelled 48000) and covering the buffer's real wall-clock time. This is the
+/// audio-speed fix's workhorse: a device that hands over real-32000 data labelled 48000 gets its
+/// samples stretched 32000→48000, so pitch and speed come out right and no gaps are left. Voice
+/// quality with linear interpolation is fine (this is a coaching mic, not a studio master).
+private func resampledMic(_ sample: CMSampleBuffer, to newPTS: CMTime,
+                          fromRate: Double, toRate: Double) -> CMSampleBuffer? {
+    guard let fmt = CMSampleBufferGetFormatDescription(sample),
+          let asbdPtr = CMAudioFormatDescriptionGetStreamBasicDescription(fmt) else { return nil }
+    let asbd = asbdPtr.pointee
+    // Only handle the format we configure in setupMicCapture (16-bit interleaved PCM).
+    guard asbd.mFormatID == kAudioFormatLinearPCM, asbd.mBitsPerChannel == 16,
+          asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0 else { return nil }
+    let channels = Int(asbd.mChannelsPerFrame)
+    let bytesPerFrame = Int(asbd.mBytesPerFrame)
+    let nIn = CMSampleBufferGetNumSamples(sample)
+    guard nIn > 1, channels >= 1, bytesPerFrame == channels * 2 else { return nil }
+
+    // Copy source PCM out (the block buffer may be non-contiguous).
+    guard let block = CMSampleBufferGetDataBuffer(sample) else { return nil }
+    let byteCount = nIn * bytesPerFrame
+    var src = [Int16](repeating: 0, count: nIn * channels)
+    let copyOK = src.withUnsafeMutableBytes { raw -> Bool in
+        CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: byteCount,
+                                   destination: raw.baseAddress!) == noErr
+    }
+    guard copyOK else { return nil }
+
+    // Linear interpolation nIn → nOut.
+    let nOut = max(1, Int((Double(nIn) * toRate / fromRate).rounded()))
+    var dst = [Int16](repeating: 0, count: nOut * channels)
+    let step = Double(nIn - 1) / Double(max(1, nOut - 1))
+    for i in 0..<nOut {
+        let pos = Double(i) * step
+        let i0 = min(nIn - 1, Int(pos))
+        let i1 = min(nIn - 1, i0 + 1)
+        let frac = pos - Double(i0)
+        for c in 0..<channels {
+            let a = Double(src[i0 * channels + c])
+            let b = Double(src[i1 * channels + c])
+            dst[i * channels + c] = Int16(max(-32768, min(32767, a + (b - a) * frac)))
+        }
+    }
+
+    // Wrap the resampled PCM in a new sample buffer with the SAME (48000) format.
+    let outBytes = nOut * bytesPerFrame
+    var outBlock: CMBlockBuffer?
+    guard CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil,
+              blockLength: outBytes, blockAllocator: kCFAllocatorDefault, customBlockSource: nil,
+              offsetToData: 0, dataLength: outBytes, flags: 0, blockBufferOut: &outBlock) == noErr,
+          let outBlock else { return nil }
+    let fillOK = dst.withUnsafeBytes { raw -> Bool in
+        CMBlockBufferReplaceDataBytes(with: raw.baseAddress!, blockBuffer: outBlock,
+                                      offsetIntoDestination: 0, dataLength: outBytes) == noErr
+    }
+    guard fillOK else { return nil }
+
+    var timing = CMSampleTimingInfo(
+        duration: CMTimeMake(value: 1, timescale: Int32(toRate)),
+        presentationTimeStamp: newPTS, decodeTimeStamp: .invalid)
+    var sampleSize = bytesPerFrame
+    var out: CMSampleBuffer?
+    let status = CMSampleBufferCreateReady(allocator: kCFAllocatorDefault, dataBuffer: outBlock,
+        formatDescription: fmt, sampleCount: nOut,
+        sampleTimingEntryCount: 1, sampleTimingArray: &timing,
+        sampleSizeEntryCount: 1, sampleSizeArray: &sampleSize, sampleBufferOut: &out)
+    return status == noErr ? out : nil
 }
 
 enum CCError: LocalizedError {

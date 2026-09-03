@@ -49,7 +49,12 @@ final class AnnotationOverlay {
             ?? NSScreen.main ?? NSScreen.screens.first
         guard let screen else { return }
 
-        let w = AnnotationWindow(contentRect: screen.frame, styleMask: .borderless,
+        // visibleFrame, NOT frame: a key borderless window covering the ENTIRE screen makes
+        // macOS auto-hide the menu bar + Dock (kiosk behaviour), which resizes every maximised
+        // window — the whole app appeared to "zoom ~10%" whenever draw mode was toggled on.
+        // Excluding the menu-bar/Dock strip keeps the desktop layout untouched; nobody needs
+        // to draw over the menu bar anyway.
+        let w = AnnotationWindow(contentRect: screen.visibleFrame, styleMask: .borderless,
                                  backing: .buffered, defer: false)
         w.isOpaque = false
         w.backgroundColor = .clear

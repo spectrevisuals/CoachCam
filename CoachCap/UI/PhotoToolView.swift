@@ -14,10 +14,11 @@ struct ImagePair: Identifiable {
 // MARK: - Main View
 
 struct PhotoToolView: View {
-    enum ViewMode { case manual, dateCompare, browse }
+    enum ViewMode { case manual, browse }
 
     @State private var pairs: [ImagePair]  = [ImagePair()]
     @State private var current: Int        = 0
+    @State private var showClearConfirm    = false
     @State private var showHeaders         = true
     @State private var isSaving            = false
     @State private var savedURL: URL?      = nil
@@ -34,12 +35,7 @@ struct PhotoToolView: View {
     var body: some View {
         VStack(spacing: 0) {
             navBar
-            if viewMode == .dateCompare {
-                DateCompareView { before, after in
-                    pairs.append(ImagePair(before: before, after: after))
-                    current = pairs.count - 1
-                }
-            } else if viewMode == .browse {
+            if viewMode == .browse {
                 BrowseView()
             } else {
                 viewer
@@ -83,7 +79,7 @@ struct PhotoToolView: View {
                     Text("from whatsapp")
                         .font(Brand.font(13, .semibold))
                         .foregroundStyle(Brand.text)
-                    Text("· hover a photo, tap lw or tw to assign")
+                    Text("· tap before or after on a photo to add it to this pose")
                         .font(Brand.font(12))
                         .foregroundStyle(Brand.muted)
                     Spacer()
@@ -141,18 +137,15 @@ struct PhotoToolView: View {
             // Mode toggle — shared segmented control
             BrandSegmented(selection: $viewMode, options: [
                 ("smart match", ViewMode.browse),
-                ("by date",     ViewMode.dateCompare),
                 ("paste",       ViewMode.manual)
             ], compact: true, recommended: ViewMode.browse)
-            .frame(width: 320)
+            .frame(width: 240)
 
             Button("+ add pose") {
                 pairs.append(ImagePair())
                 current = pairs.count - 1
             }
             .buttonStyle(PrimaryButtonStyle())
-            .opacity(viewMode == .dateCompare ? 0 : 1)
-            .disabled(viewMode == .dateCompare)
 
             if pairs.count > 1 {
                 Button("remove") {
@@ -161,11 +154,29 @@ struct PhotoToolView: View {
                 }
                 .foregroundStyle(Brand.danger)
             }
+
+            // Quick reset for starting a new check-in — wipes the whole pose deck.
+            if pairs.count > 1 || pairs.first?.before != nil || pairs.first?.after != nil {
+                Button("clear all") { showClearConfirm = true }
+                    .foregroundStyle(Brand.danger)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
         .background(Brand.bgElev)
         .overlay(Rectangle().fill(Brand.border).frame(height: 1), alignment: .bottom)
+        .confirmationDialog("Clear all poses?", isPresented: $showClearConfirm, titleVisibility: .visible) {
+            Button("Clear all poses", role: .destructive) { clearAllPoses() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Removes every before/after pose so you can start the next check-in fresh.")
+        }
+    }
+
+    /// Wipe the whole pose deck back to one empty pose — for moving on to the next client.
+    private func clearAllPoses() {
+        pairs = [ImagePair()]
+        current = 0
     }
 
     private var autoHideToggle: some View {
@@ -213,7 +224,7 @@ struct PhotoToolView: View {
             // Before panel
             ZStack(alignment: .top) {
                 PhotoPanel(image: $pairs[current].before)
-                Text("last week")
+                Text("before")
                     .font(Brand.font(12, .semibold))
                     .foregroundStyle(.white.opacity(0.8))
                     .padding(.horizontal, 12).padding(.vertical, 5)
@@ -229,7 +240,7 @@ struct PhotoToolView: View {
             // After panel
             ZStack(alignment: .top) {
                 PhotoPanel(image: $pairs[current].after)
-                Text("this week")
+                Text("after")
                     .font(Brand.font(12, .semibold))
                     .foregroundStyle(.white.opacity(0.8))
                     .padding(.horizontal, 12).padding(.vertical, 5)

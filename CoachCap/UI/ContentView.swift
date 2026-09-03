@@ -5,6 +5,10 @@ struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject private var licenseManager = LicenseManager.shared
     @State private var showTranslocationAlert = false
+    @State private var showHelp = false
+    @State private var helpIsFirstRun = false
+    /// Set once we've auto-shown the "how it works" guide, so it only pops up the first launch.
+    @AppStorage("hasSeenGuide") private var hasSeenGuide = false
 
     var body: some View {
         if showTranslocationAlert {
@@ -40,8 +44,17 @@ struct ContentView: View {
             } message: {
                 Text(appState.errorMessage ?? "")
             }
+            .sheet(isPresented: $showHelp) {
+                HelpGuideView(isPresented: $showHelp, firstRun: helpIsFirstRun)
+            }
             .onAppear {
                 checkTranslocation()
+                // Auto-show the guide once, the first time someone reaches the unlocked app.
+                if !hasSeenGuide {
+                    hasSeenGuide = true
+                    helpIsFirstRun = true
+                    showHelp = true
+                }
             }
         }
     }
@@ -55,6 +68,22 @@ struct ContentView: View {
                 ("before / after", AppTab.photoTool)
             ])
             .frame(width: 300)
+
+            // "?" help button — parks on the right, clear of the centred tabs.
+            HStack {
+                Spacer()
+                Button {
+                    helpIsFirstRun = false
+                    showHelp = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Brand.muted)
+                }
+                .buttonStyle(.plain)
+                .help("how coachcam works")
+                .padding(.trailing, 16)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 7)

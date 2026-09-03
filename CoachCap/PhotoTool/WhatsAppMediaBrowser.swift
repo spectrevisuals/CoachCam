@@ -24,15 +24,26 @@ final class WhatsAppMediaLoader: ObservableObject {
     @Published var isLoadingPhotos   = false
     @Published var unavailable       = false
 
-    nonisolated static let dbPath: String = {
-        (("~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite") as NSString)
-            .expandingTildeInPath
+    /// The active WhatsApp group container. The consumer app and WhatsApp Business use
+    /// different containers (`WhatsApp.shared` vs `WhatsAppSMB.shared`); a coach who switches
+    /// account types may end up with both on disk, so pick whichever ChatStorage.sqlite was
+    /// written most recently — that's the one the live app is using.
+    nonisolated static let containerBase: String = {
+        let root = ("~/Library/Group Containers" as NSString).expandingTildeInPath
+        let candidates = ["group.net.whatsapp.WhatsApp.shared", "group.net.whatsapp.WhatsAppSMB.shared"]
+            .map { "\(root)/\($0)" }
+        let freshest = candidates
+            .compactMap { base -> (String, Date)? in
+                let attrs = try? FileManager.default.attributesOfItem(atPath: "\(base)/ChatStorage.sqlite")
+                guard let mod = attrs?[.modificationDate] as? Date else { return nil }
+                return (base, mod)
+            }
+            .max { $0.1 < $1.1 }?.0
+        return freshest ?? candidates[0]
     }()
 
-    nonisolated static let mediaBase: String = {
-        (("~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/Message") as NSString)
-            .expandingTildeInPath
-    }()
+    nonisolated static var dbPath: String { "\(containerBase)/ChatStorage.sqlite" }
+    nonisolated static var mediaBase: String { "\(containerBase)/Message" }
 
     init() { Task { await loadContacts() } }
 
@@ -283,15 +294,15 @@ struct WhatsAppMediaBrowser: View {
     private var photoArea: some View {
         if loader.isLoadingPhotos {
             ProgressView("Loading photos…")
-                .frame(maxWidth: .infinity).frame(height: 108)
+                .frame(maxWidth: .infinity).frame(height: 132)
         } else if selectedContact == nil {
             Text("Select a client above to see their photos")
                 .foregroundColor(.secondary).font(.caption)
-                .frame(maxWidth: .infinity).frame(height: 108)
+                .frame(maxWidth: .infinity).frame(height: 132)
         } else if loader.currentPhotos.isEmpty {
             Text("No photos in this date range")
                 .foregroundColor(.secondary).font(.caption)
-                .frame(maxWidth: .infinity).frame(height: 108)
+                .frame(maxWidth: .infinity).frame(height: 132)
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -301,7 +312,7 @@ struct WhatsAppMediaBrowser: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
             }
-            .frame(height: 108)
+            .frame(height: 132)
         }
     }
 }
@@ -311,50 +322,45 @@ struct WhatsAppMediaBrowser: View {
 private struct WAThumbView: View {
     let item: WhatsAppMediaItem
     let onAssign: (NSImage, WhatsAppMediaBrowser.AssignSlot) -> Void
-    @State private var isHovered = false
 
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "d MMM"; return f
     }()
 
+    // Buttons are ALWAYS visible under each photo — no hover. Hover-reveal on a fast-scrolling
+    // horizontal strip was hit-and-miss (the wrong thumb would light up), so the assign buttons
+    // now live permanently below the image: reliable, and obvious to a first-time coach.
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Image
-            Group {
-                if let t = item.thumb {
-                    Image(nsImage: t).resizable().scaledToFill()
-                } else {
-                    Color(NSColor.controlColor)
-                        .overlay(ProgressView().scaleEffect(0.6))
+        VStack(spacing: 4) {
+            ZStack(alignment: .bottom) {
+                Group {
+                    if let t = item.thumb {
+                        Image(nsImage: t).resizable().scaledToFill()
+                    } else {
+                        Color(NSColor.controlColor)
+                            .overlay(ProgressView().scaleEffect(0.6))
+                    }
                 }
-            }
-            .frame(width: 72, height: 90).clipped()
+                .frame(width: 74, height: 84).clipped()
 
-            // Date badge (always visible)
-            Text(Self.dateFmt.string(from: item.date))
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, 4).padding(.vertical, 2)
-                .background(Color.black.opacity(0.55))
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-                .padding(.bottom, 4)
-                .opacity(isHovered ? 0 : 1)
-
-            // LW / TW buttons on hover
-            if isHovered {
-                HStack(spacing: 3) {
-                    assignBtn("LW", color: .blue,  slot: .lastWeek)
-                    assignBtn("TW", color: .green, slot: .thisWeek)
-                }
-                .padding(.bottom, 4)
-                .transition(.opacity)
+                Text(Self.dateFmt.string(from: item.date))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 4).padding(.vertical, 2)
+                    .background(Color.black.opacity(0.55))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .padding(.bottom, 4)
             }
+            .frame(width: 74, height: 84)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 1))
+
+            VStack(spacing: 3) {
+                assignBtn("before", color: .blue,  slot: .lastWeek)
+                assignBtn("after",  color: .green, slot: .thisWeek)
+            }
+            .frame(width: 74)
         }
-        .frame(width: 72, height: 90)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 1))
-        .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.1), value: isHovered)
     }
 
     private func assignBtn(_ label: String, color: Color, slot: WhatsAppMediaBrowser.AssignSlot) -> some View {
@@ -366,8 +372,9 @@ private struct WAThumbView: View {
         }
         .font(.system(size: 10, weight: .bold))
         .foregroundColor(.white)
-        .padding(.horizontal, 6).padding(.vertical, 3)
-        .background(color.opacity(0.85))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.9))
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .buttonStyle(.plain)
     }

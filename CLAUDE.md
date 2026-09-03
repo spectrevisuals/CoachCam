@@ -97,6 +97,7 @@ Usage:
 - [x] Webcam-only (talking-head) mode
 - [x] Pause/resume (track cumulative paused duration, skip frames during pause)
 - [x] Before/after photo stitcher (PhotoStitcher)
+- [x] In-app "how it works" guide (`UI/HelpGuideView.swift`) — "?" button in the top bar + auto-shown once on first launch (`@AppStorage("hasSeenGuide")`); covers recording, smart-match keys, WhatsApp import, and Screen Recording / Full Disk Access permission steps with deep-link buttons
 - [ ] Quick top-and-tail trim (next: AVAssetExportSession with time range)
 - [ ] Progress indicator during export compression
 

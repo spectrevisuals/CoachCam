@@ -14,6 +14,9 @@ struct RecordingView: View {
     @State private var showSavedBanner = false
     @State private var floatingPanel: FloatingCameraPanel? = nil
     @State private var annotationOverlay = AnnotationOverlay()
+    /// Floating "stop drawing / pen / eraser / stop & save" controls while drawing WITHOUT the
+    /// float cam — the overlay covers the main window, so these must float above it.
+    @State private var annotationToolbar: NSPanel? = nil
     @State private var showLowStorageAlert = false
     @State private var freeGBText = ""
     @State private var showTrialAlert = false
@@ -52,9 +55,14 @@ struct RecordingView: View {
         .onAppear {
             Task { await session.checkPermission() }
             camera.startCapture(cameraID: appState.selectedCameraID)
-            if appState.selectedDisplayID == nil {
-                appState.selectedDisplayID = DisplayList.available().first?.id
-            }
+            // Default the recording monitor to the one CoachCam's window is on (async: the
+            // window may not be attached yet on first appear). Falls back to primary.
+            DispatchQueue.main.async { syncDisplayToWindow() }
+        }
+        // Keep following the window across monitors until the coach explicitly picks one.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeScreenNotification)) { notif in
+            guard let win = notif.object as? NSWindow, win === mainWindow() else { return }
+            syncDisplayToWindow()
         }
         .task {
             // Confirm/refresh the subscription in the background; never gates launch.
@@ -75,6 +83,7 @@ struct RecordingView: View {
                 // Recording ended — drop draw mode and clear any on-screen lines.
                 appState.isAnnotating = false
                 annotationOverlay.teardown()
+                removeAnnotationToolbar()
                 // Recording ended WITHOUT the coach pressing stop (writer died mid-recording,
                 // the stream was interrupted, or the free-tier timer fired). The normal stop
                 // path clears isRecording first, so this only runs for an unexpected stop —
@@ -376,23 +385,31 @@ struct RecordingView: View {
                 .keyboardShortcut(".")
 
                 // Draw-on-screen: toggle draw mode, and clear the lines.
+                // ⚠️ LAYOUT MUST NOT CHANGE with isAnnotating. The window uses
+                // .windowResizability(.contentSize), and these buttons are fixedSize — any
+                // extra width when draw mode turns on (a longer label, a new button) makes
+                // SwiftUI GROW THE WINDOW past the screen edges, which looked like the whole
+                // app "zooming ~10%" until draw mode was toggled off. Constant label; the
+                // pen/line toggle keeps its space reserved and only fades in.
                 Button { toggleAnnotate() } label: {
-                    HStack(spacing: 7) { Image(systemName: "pencil.tip"); Text(appState.isAnnotating ? "drawing…" : "draw") }
+                    HStack(spacing: 7) { Image(systemName: "pencil.tip"); Text("draw") }
                 }
                 .buttonStyle(OutlineButtonStyle(active: appState.isAnnotating))
                 .help("Draw lines over anything on screen. Tap, then drag to draw. Tap again to stop.")
 
-                // Pen vs straight-line, shown only while drawing.
-                if appState.isAnnotating {
-                    Button { toggleStraightLine() } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: appState.annotationStraightLine ? "line.diagonal" : "scribble.variable")
-                            Text(appState.annotationStraightLine ? "line" : "pen")
-                        }
+                // Pen vs straight-line — usable only while drawing, but ALWAYS in the layout.
+                Button { toggleStraightLine() } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: appState.annotationStraightLine ? "line.diagonal" : "scribble.variable")
+                        // Size to the wider word so pen↔line can't nudge the window width.
+                        Text("line").hidden()
+                            .overlay(Text(appState.annotationStraightLine ? "line" : "pen"), alignment: .leading)
                     }
-                    .buttonStyle(OutlineButtonStyle(active: appState.annotationStraightLine))
-                    .help("Switch between a straight line and freehand pen (or hold Shift for a straight line)")
                 }
+                .buttonStyle(OutlineButtonStyle(active: appState.annotationStraightLine))
+                .help("Switch between a straight line and freehand pen (or hold Shift for a straight line)")
+                .opacity(appState.isAnnotating ? 1 : 0)
+                .allowsHitTesting(appState.isAnnotating)
 
                 Button { annotationOverlay.clear() } label: {
                     Image(systemName: "eraser")
@@ -435,8 +452,32 @@ struct RecordingView: View {
 
     private var displayPill: some View {
         dropdownPill(icon: "display", label: selectedDisplayLabel,
-                     selection: $appState.selectedDisplayID,
+                     selection: Binding(
+                        get: { appState.selectedDisplayID },
+                        set: { appState.selectedDisplayID = $0
+                               appState.userPickedDisplay = true }),   // explicit pick sticks
                      options: availableDisplays.map { ($0.label, Optional($0.id)) })
+    }
+
+    /// Point the recording at the monitor CoachCam's window is on — unless the coach has
+    /// explicitly chosen one, or a recording is in flight. If an explicitly-chosen monitor
+    /// has been unplugged, fall back to following the window again.
+    private func syncDisplayToWindow() {
+        guard !session.isRunning else { return }
+        let available = DisplayList.available()
+        if appState.userPickedDisplay {
+            guard !available.contains(where: { $0.id == appState.selectedDisplayID }) else { return }
+            appState.userPickedDisplay = false   // chosen monitor is gone — follow the window
+        }
+        let windowID: CGDirectDisplayID? = mainWindow()?.screen?
+            .deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+            .flatMap { ($0 as? NSNumber)?.uint32Value }
+            .map { CGDirectDisplayID($0) }
+        if let id = windowID, available.contains(where: { $0.id == id }) {
+            if appState.selectedDisplayID != id { appState.selectedDisplayID = id }
+        } else if appState.selectedDisplayID == nil {
+            appState.selectedDisplayID = available.first?.id
+        }
     }
 
     /// Styled dropdown. The pill styling lives INSIDE the menu label (with a hit-testable
@@ -872,10 +913,54 @@ struct RecordingView: View {
     /// Toggle draw-on-screen mode. Lines persist until cleared; the overlay is torn down when
     /// recording ends.
     private func toggleAnnotate() {
-        annotationOverlay.onExitDrawing = { appState.isAnnotating = false }
+        annotationOverlay.onExitDrawing = { appState.isAnnotating = false; removeAnnotationToolbar() }
         appState.isAnnotating.toggle()
         annotationOverlay.setDrawing(appState.isAnnotating)
         annotationOverlay.setStraightLine(appState.annotationStraightLine)   // keep tool in sync
+        // The draw overlay sits ABOVE the main window, so in normal (non-float-cam) recording
+        // the app's own buttons become unclickable while drawing — clicking "stop" just drew a
+        // line over it and the only way out was Esc (undiscoverable) or force-quit. The float
+        // cam never had this problem because it floats above the overlay — so give normal mode
+        // the same thing: a small floating toolbar with the essential controls.
+        if appState.isAnnotating && floatingPanel == nil {
+            showAnnotationToolbar()
+        } else {
+            removeAnnotationToolbar()
+        }
+    }
+
+    /// Floating always-clickable controls while drawing without the float cam.
+    private func showAnnotationToolbar() {
+        guard annotationToolbar == nil else { return }
+        let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
+                        backing: .buffered, defer: false)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.level = .floating   // above the annotation overlay (floating − 1), like the float cam
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        let host = NSHostingView(rootView: AnnotationToolbarView(
+            appState: appState,
+            onToggleLine:    { toggleStraightLine() },
+            onClear:         { annotationOverlay.clear() },
+            onStopDrawing:   { toggleAnnotate() },
+            onStopRecording: { stopAndSave() }))
+        host.frame.size = host.fittingSize
+        p.contentView = host
+        p.setContentSize(host.fittingSize)
+        // Bottom-centre of the screen the pointer is on (same rule the overlay uses).
+        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+            ?? NSScreen.main
+        if let vf = screen?.visibleFrame {
+            p.setFrameOrigin(NSPoint(x: vf.midX - host.fittingSize.width / 2, y: vf.minY + 26))
+        }
+        p.orderFrontRegardless()
+        annotationToolbar = p
+    }
+
+    private func removeAnnotationToolbar() {
+        annotationToolbar?.orderOut(nil)
+        annotationToolbar = nil
     }
 
     /// Switch the on-screen draw tool between freehand pen and straight line.
@@ -1007,5 +1092,51 @@ private extension NSImage {
         let rep = NSCIImageRep(ciImage: ciImage)
         self.init(size: rep.size)
         addRepresentation(rep)
+    }
+}
+
+// MARK: - Floating annotation toolbar (normal record mode)
+
+/// The always-clickable controls shown while drawing WITHOUT the float cam. The draw overlay
+/// covers the whole screen above the main window, so these live in their own floating panel
+/// (above the overlay, like the float cam's buttons) — otherwise "stop" is unclickable and
+/// drawing can only be exited with Esc.
+private struct AnnotationToolbarView: View {
+    @ObservedObject var appState: AppState
+    let onToggleLine:    () -> Void
+    let onClear:         () -> Void
+    let onStopDrawing:   () -> Void
+    let onStopRecording: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { onStopDrawing() } label: {
+                HStack(spacing: 6) { Image(systemName: "pencil.slash"); Text("stop drawing") }
+            }
+            .buttonStyle(PrimaryButtonStyle(color: Brand.accent))
+
+            Button { onToggleLine() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: appState.annotationStraightLine ? "line.diagonal" : "scribble.variable")
+                    Text("line").hidden()
+                        .overlay(Text(appState.annotationStraightLine ? "line" : "pen"), alignment: .leading)
+                }
+            }
+            .buttonStyle(OutlineButtonStyle(active: appState.annotationStraightLine))
+            .help("Straight line vs freehand pen (or hold Shift for a straight line)")
+
+            Button { onClear() } label: { Image(systemName: "eraser") }
+                .buttonStyle(OutlineButtonStyle())
+                .help("Clear the drawn lines")
+
+            Button { onStopRecording() } label: {
+                HStack(spacing: 6) { Image(systemName: "stop.fill"); Text("stop & save") }
+            }
+            .buttonStyle(PrimaryButtonStyle(color: Brand.danger))
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous).fill(Brand.bgCard))
+        .overlay(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous).stroke(Brand.border, lineWidth: 1))
+        .brandTheme()
     }
 }

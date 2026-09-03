@@ -240,11 +240,10 @@ struct BrowseView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var contactLoader = DateCompareLoader()
     @State private var selectedContact: String? = nil
-    @State private var linked       = false
-    @State private var reverseControls = false
     @State private var leftIndex    = 0
     @State private var rightIndex   = 0
-    @State private var linkedIndex  = 0
+    @State private var leftDateKey:  String? = nil
+    @State private var rightDateKey: String? = nil
     @State private var leftCount    = 0
     @State private var rightCount   = 0
     @State private var keyMonitor:  Any? = nil
@@ -252,6 +251,21 @@ struct BrowseView: View {
     @State private var rightPhotos: [WhatsAppMediaItem] = []
     @State private var aiMatches:   [PoseMatch] = []
     @State private var aiMatchIdx   = 0
+    // Indices of AI matches the coach has re-paired by hand (for the ✎ "edited" badge).
+    @State private var aiEdited:    Set<Int> = []
+    // Explicit "fix this pairing" mode. While editing, ← / → (and the on-screen arrows) scrub
+    // the AFTER photo instead of stepping between poses — so you can line the match up without
+    // jumping away — then "save match" locks it and hands the arrows back to pose-stepping.
+    @State private var editingMatch = false
+    @State private var editBackup:  PoseMatch? = nil   // for "cancel" — restore the pre-edit pairing
+    // Free-scrub mode: keyboard drives the two panels independently (letters = before/left,
+    // arrows = after/right), ignoring AI stepping — the old "just flick through by hand" feel.
+    @State private var manualScroll = false
+    // "sort before / after" — hand-tagged photo sets that override the date pickers, for a
+    // client who sent before + after in one mixed batch. nil = normal date-browsing.
+    @State private var showSortSheet  = false
+    @State private var leftOverride:  [WhatsAppMediaItem]? = nil
+    @State private var rightOverride: [WhatsAppMediaItem]? = nil
     @State private var aiLoading    = false
     @State private var aiError:     String? = nil
     // Bumped to tell the two panels to re-query WhatsApp for newly-arrived photos.
@@ -341,34 +355,73 @@ struct BrowseView: View {
 
                 Divider().frame(height: 20)
 
-                Toggle(isOn: $linked) {
-                    Label("Sync arrows", systemImage: linked ? "link" : "link.badge.plus")
-                        .font(.caption)
+                // Manual scroll — flick through each side by hand with the keyboard.
+                Button {
+                    manualScroll.toggle()
+                    if manualScroll { editingMatch = false }   // the two modes are mutually exclusive
+                } label: {
+                    Label("manual scroll", systemImage: "arrow.left.and.right")
+                        .font(.caption.weight(.medium))
                 }
-                .toggleStyle(.checkbox)
-                .onChange(of: linked) { _, on in if on { linkedIndex = leftIndex } }
+                .buttonStyle(.bordered)
+                .tint(manualScroll ? Brand.accent : .secondary)
+                .help("Scroll each side by hand: W A S D move the before photo, ← / → move the after")
 
-                Divider().frame(height: 20)
-
-                Toggle(isOn: $reverseControls) {
-                    Label("reverse a+d and arrows", systemImage: reverseControls ? "arrow.2.squarepath" : "keyboard")
-                        .font(.caption)
+                // Sort before / after — client sent before + after (+ other shots) in one batch.
+                Button { showSortSheet = true } label: {
+                    Label("sort before / after", systemImage: "square.grid.2x2")
+                        .font(.caption.weight(.medium))
                 }
-                .toggleStyle(.checkbox)
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+                .disabled(selectedContact == nil)
+                .help("Client sent before + after in one batch (missed a week)? Tag which photos are before and which are after, and leave the rest out of the comparison.")
+
+                // Showing a hand-sorted set — offer a way back to the date pickers.
+                if leftOverride != nil || rightOverride != nil {
+                    Button { clearSorted() } label: {
+                        Label("sorted batch", systemImage: "xmark.circle.fill")
+                            .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.borderedProminent).tint(Brand.accent)
+                    .help("Back to browsing by date")
+                }
 
                 Divider().frame(height: 20)
 
                 // AI match
                 if !aiMatches.isEmpty {
-                    HStack(spacing: 8) {
-                        Button { stepAIMatch(-1) } label: { Image(systemName: "chevron.left") }
-                            .buttonStyle(.plain).disabled(aiMatchIdx == 0)
-                        Text("AI: \(aiMatches[aiMatchIdx].pose.capitalized)  \(aiMatchIdx+1)/\(aiMatches.count)")
-                            .font(.caption.bold()).foregroundColor(.blue)
-                        Button { stepAIMatch(1) } label: { Image(systemName: "chevron.right") }
-                            .buttonStyle(.plain).disabled(aiMatchIdx == aiMatches.count - 1)
-                        Button("Clear") { aiMatches = []; aiMatchIdx = 0 }
-                            .buttonStyle(.link).font(.caption)
+                    if editingMatch {
+                        // Fixing the current pair: scrub the AFTER photo, then lock it in.
+                        HStack(spacing: 8) {
+                            Text("fixing \(aiMatches[aiMatchIdx].pose.lowercased())")
+                                .font(.caption.bold()).foregroundColor(Brand.accent)
+                            Button { nudgeRight(-1) } label: { Image(systemName: "chevron.left") }
+                                .buttonStyle(.plain).disabled(rightIndex == 0)
+                            Text("after photo \(rightIndex + 1)/\(max(rightCount, 1))")
+                                .font(.caption).foregroundColor(.secondary)
+                            Button { nudgeRight(1) } label: { Image(systemName: "chevron.right") }
+                                .buttonStyle(.plain).disabled(rightIndex >= rightCount - 1)
+                            Button("save match") { saveMatch() }
+                                .buttonStyle(.borderedProminent).font(.caption)
+                            Button("cancel") { cancelEdit() }
+                                .buttonStyle(.link).font(.caption)
+                        }
+                    } else {
+                        HStack(spacing: 8) {
+                            Button { stepAIMatch(-1) } label: { Image(systemName: "chevron.left") }
+                                .buttonStyle(.plain).disabled(aiMatchIdx == 0)
+                            Text("AI: \(aiMatches[aiMatchIdx].pose.capitalized)  \(aiMatchIdx+1)/\(aiMatches.count)\(aiEdited.contains(aiMatchIdx) ? "  ✎" : "")")
+                                .font(.caption.bold()).foregroundColor(.blue)
+                                .help(aiEdited.contains(aiMatchIdx) ? "You corrected this pairing by hand" : "")
+                            Button { stepAIMatch(1) } label: { Image(systemName: "chevron.right") }
+                                .buttonStyle(.plain).disabled(aiMatchIdx == aiMatches.count - 1)
+                            Button("ai match wrong?") { beginEdit() }
+                                .buttonStyle(.bordered).font(.caption)
+                                .help("Line up the correct after photo for this pose, then save it")
+                            Button("Clear") { aiMatches = []; aiMatchIdx = 0; aiEdited = []; editingMatch = false }
+                                .buttonStyle(.link).font(.caption)
+                        }
                     }
                 } else if aiLoading {
                     ProgressView().scaleEffect(0.7)
@@ -398,35 +451,47 @@ struct BrowseView: View {
             // scrubbing unmistakable. Full-width accent strip under the toolbar.
             HStack(spacing: 8) {
                 Image(systemName: "keyboard").foregroundColor(Brand.accent)
-                Text("AI match not quite right? Use **A / D** for the left photo and **← / →** for the right to line them up by hand — tick ‘sync arrows’ to move both together.")
+                Text(.init(hintText))
                     .font(Brand.font(12))
                     .foregroundColor(Brand.text.opacity(0.9))
                 Spacer()
             }
             .padding(.horizontal, 16).padding(.vertical, 7)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Brand.accentSoft)
+            .background((editingMatch || manualScroll) ? Brand.accent.opacity(0.22) : Brand.accentSoft)
 
             Divider()
 
             HStack(spacing: 0) {
                 BrowsePanelView(contact: selectedContact,
                                 refreshToken: refreshToken,
-                                index: linked ? $linkedIndex : $leftIndex,
+                                index: $leftIndex,
                                 photoCount: $leftCount,
-                                photos: $leftPhotos)
+                                photos: $leftPhotos,
+                                dateKey: $leftDateKey,
+                                sideLabel: "before",
+                                override: leftOverride)
                 Rectangle().fill(Color.white.opacity(0.2)).frame(width: 2)
                 BrowsePanelView(contact: selectedContact,
                                 refreshToken: refreshToken,
-                                index: linked ? $linkedIndex : $rightIndex,
+                                index: $rightIndex,
                                 photoCount: $rightCount,
-                                photos: $rightPhotos)
+                                photos: $rightPhotos,
+                                dateKey: $rightDateKey,
+                                sideLabel: "after",
+                                override: rightOverride)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
         }
         .onAppear  { startKeyMonitor() }
         .onDisappear { stopKeyMonitor() }
+        .sheet(isPresented: $showSortSheet) {
+            SortBatchSheet(contact: selectedContact,
+                           initialDateKey: leftDateKey,
+                           onCompare: { before, after in applySorted(before: before, after: after) },
+                           onCancel: { showSortSheet = false })
+        }
         // New check-in photos land in WhatsApp while CoachCam stays open. On returning to the
         // app, refresh ONLY the contact list (counts) — NOT the photo panels. The coach tabs
         // to WhatsApp and back constantly; reloading the panels here would wipe an in-progress
@@ -466,6 +531,7 @@ struct BrowseView: View {
                                                                          rightURLs: rightURLs)
                 aiMatches  = matches
                 aiMatchIdx = 0
+                aiEdited   = []   // fresh AI run — clear any prior hand corrections
                 if let first = matches.first {
                     leftIndex  = first.leftIndex
                     rightIndex = first.rightIndex
@@ -477,7 +543,20 @@ struct BrowseView: View {
         }
     }
 
+    /// The accent strip under the toolbar — reflects the current keyboard mode.
+    private var hintText: String {
+        if manualScroll {
+            return "Manual scroll: **W A S D** flick the before photo, **← / →** flick the after. Turn off *manual scroll* to go back to AI poses."
+        }
+        if editingMatch {
+            return "Lining up the **after** photo — use **← / →** (or the arrows above). Hit **save match** when it's right, or **cancel**."
+        }
+        return "Step through poses with **← / →**. AI got a pairing wrong? Hit **ai match wrong?** to line up the correct after photo, then lock it in."
+    }
+
     private func stepAIMatch(_ delta: Int) {
+        // Never jump poses mid-edit — you must save or cancel first (that's the "lock").
+        guard !editingMatch else { return }
         let next = aiMatchIdx + delta
         guard aiMatches.indices.contains(next) else { return }
         aiMatchIdx = next
@@ -485,46 +564,109 @@ struct BrowseView: View {
         rightIndex = aiMatches[next].rightIndex
     }
 
+    private func nudgeLeft(_ delta: Int)  { leftIndex  = max(0, min(leftCount  - 1, leftIndex  + delta)) }
+    private func nudgeRight(_ delta: Int) { rightIndex = max(0, min(rightCount - 1, rightIndex + delta)) }
+
+    /// Apply a hand-sorted batch: the before-tagged photos become the left (before) sequence,
+    /// the after-tagged become the right. Clears any AI match; leaves the keyboard mode alone
+    /// (the coach can still click each panel's arrows, or turn on manual scroll themselves).
+    private func applySorted(before: [WhatsAppMediaItem], after: [WhatsAppMediaItem]) {
+        leftOverride = before; rightOverride = after
+        leftPhotos = before;   rightPhotos = after
+        leftCount = before.count; rightCount = after.count
+        leftIndex = 0; rightIndex = 0
+        aiMatches = []; aiMatchIdx = 0; aiEdited = []; editingMatch = false
+        showSortSheet = false
+    }
+
+    /// Drop the hand-sorted set and go back to browsing by date.
+    private func clearSorted() {
+        leftOverride = nil; rightOverride = nil
+        leftIndex = 0; rightIndex = 0
+    }
+
+    /// Enter "fix this pairing" mode for the current AI pose. Stashes the current pairing so
+    /// "cancel" can put it back untouched.
+    private func beginEdit() {
+        guard aiMatches.indices.contains(aiMatchIdx) else { return }
+        editBackup = aiMatches[aiMatchIdx]
+        editingMatch = true
+    }
+
+    /// Lock the coach's pairing into the AI sequence and hand the arrows back to pose-stepping.
+    private func saveMatch() {
+        if aiMatches.indices.contains(aiMatchIdx) {
+            let pose = aiMatches[aiMatchIdx].pose
+            aiMatches[aiMatchIdx] = PoseMatch(leftIndex: leftIndex, rightIndex: rightIndex, pose: pose)
+            aiEdited.insert(aiMatchIdx)
+        }
+        editingMatch = false
+        editBackup = nil
+    }
+
+    /// Bail out without changing the pairing — restore what it was before editing.
+    private func cancelEdit() {
+        if let b = editBackup {
+            leftIndex  = b.leftIndex
+            rightIndex = b.rightIndex
+        }
+        editingMatch = false
+        editBackup = nil
+    }
+
     private func startKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Don't hijack A/D/arrows while the coach is typing in a text field (e.g. the
-            // client search box) — let those keystrokes reach the field.
+            // Don't hijack keys while the coach is typing (e.g. the client search box).
             if isTextInputFocused() { return event }
-            let isArrowLeft  = event.keyCode == 123
-            let isArrowRight = event.keyCode == 124
-            let isWASDLeft   = event.keyCode == 0  // A
-            let isWASDRight  = event.keyCode == 2  // D
+            let left   = event.keyCode == 123
+            let right  = event.keyCode == 124
+            let a      = event.keyCode == 0    // A
+            let d      = event.keyCode == 2    // D
+            let w      = event.keyCode == 13   // W
+            let s      = event.keyCode == 1    // S
+            let enter  = event.keyCode == 36 || event.keyCode == 76   // Return / numpad Enter
+            let escape = event.keyCode == 53
+            guard left || right || a || d || w || s || enter || escape else { return event }
 
-            guard isArrowLeft || isArrowRight || isWASDLeft || isWASDRight else { return event }
-
-            // When AI matches are active, arrows step through pairs
-            if !self.aiMatches.isEmpty && (isArrowLeft || isArrowRight) {
-                if isArrowLeft  { self.stepAIMatch(-1) }
-                if isArrowRight { self.stepAIMatch(1) }
+            // ── Manual scroll: the whole WASD cluster flicks the BEFORE (left) photo, the arrows
+            //    flick the AFTER (right) photo — two independent scrubbers, no AI stepping.
+            if self.manualScroll {
+                if d || w { self.nudgeLeft(1) }    // forward on the before photo
+                if a || s { self.nudgeLeft(-1) }   // back
+                if right  { self.nudgeRight(1) }
+                if left   { self.nudgeRight(-1) }
                 return nil
             }
 
-            // Default: A/D control the LEFT side, arrows control the RIGHT side.
-            // "reverse a+d and arrows" swaps that.
-            let arrowControlsLeft = self.reverseControls
+            // ── Editing a pairing: arrows (and W/S) scrub the AFTER photo; A/D nudge the before;
+            //    Enter locks it, Esc bails. Stepping between poses is disabled until you commit.
+            if self.editingMatch {
+                if enter  { self.saveMatch();  return nil }
+                if escape { self.cancelEdit(); return nil }
+                if a { self.nudgeLeft(-1) }
+                if d { self.nudgeLeft(1) }
+                if left  || s { self.nudgeRight(-1) }
+                if right || w { self.nudgeRight(1) }
+                return nil
+            }
 
-            if self.linked {
-                let cap = max(self.leftCount, self.rightCount)
-                if isArrowLeft  || isWASDLeft  { self.linkedIndex = max(0, self.linkedIndex - 1) }
-                if isArrowRight || isWASDRight { self.linkedIndex = min(cap - 1, self.linkedIndex + 1) }
-            } else {
-                // Arrows control one side, WASD controls the other
-                if arrowControlsLeft {
-                    if isArrowLeft  { self.leftIndex = max(0, self.leftIndex - 1) }
-                    if isArrowRight { self.leftIndex = min(self.leftCount - 1, self.leftIndex + 1) }
-                    if isWASDLeft   { self.rightIndex = max(0, self.rightIndex - 1) }
-                    if isWASDRight  { self.rightIndex = min(self.rightCount - 1, self.rightIndex + 1) }
-                } else {
-                    if isArrowLeft  { self.rightIndex = max(0, self.rightIndex - 1) }
-                    if isArrowRight { self.rightIndex = min(self.rightCount - 1, self.rightIndex + 1) }
-                    if isWASDLeft   { self.leftIndex = max(0, self.leftIndex - 1) }
-                    if isWASDRight  { self.leftIndex = min(self.leftCount - 1, self.leftIndex + 1) }
+            // ── Not editing: ← / → step between the AI-matched poses (same as the ‹ › buttons).
+            if left || right {
+                if !self.aiMatches.isEmpty {
+                    if left  { self.stepAIMatch(-1) }
+                    if right { self.stepAIMatch(1) }
                 }
+                return nil
+            }
+            // A/D/W/S drop straight into edit mode for this pose and apply the first nudge, so
+            // keyboard-first coaches don't have to reach for the button.
+            if a || d || w || s, !self.aiMatches.isEmpty {
+                self.beginEdit()
+                if a { self.nudgeLeft(-1) }
+                if d { self.nudgeLeft(1) }
+                if s { self.nudgeRight(-1) }
+                if w { self.nudgeRight(1) }
+                return nil
             }
             return nil
         }
@@ -543,11 +685,16 @@ private struct BrowsePanelView: View {
     @Binding var index: Int
     @Binding var photoCount: Int
     @Binding var photos: [WhatsAppMediaItem]
+    // Hoisted to the parent so a shared date can be pushed onto both sides.
+    @Binding var dateKey: String?
+    // "before" / "after" — shown when displaying a hand-sorted set.
+    var sideLabel: String = ""
+    // When set (from "sort before / after"), the panel shows this exact list instead of a date.
+    var override: [WhatsAppMediaItem]? = nil
 
     @StateObject private var loader = DateCompareLoader()
-    @State private var dateKey: String? = nil
 
-    private var currentPhotos: [WhatsAppMediaItem] { loader.leftPhotos }
+    private var currentPhotos: [WhatsAppMediaItem] { override ?? loader.leftPhotos }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -590,8 +737,11 @@ private struct BrowsePanelView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            // Date picker
-            if contact == nil {
+            // Date picker (or a "sorted" label when showing a hand-tagged set)
+            if override != nil {
+                Label("sorted • \(sideLabel)", systemImage: "square.grid.2x2")
+                    .font(.caption.bold()).foregroundColor(Brand.accent)
+            } else if contact == nil {
                 Text("← Select a client first")
                     .foregroundColor(.secondary).font(.caption)
             } else if loader.dates.isEmpty && !loader.isLoadingLeft {
@@ -668,334 +818,5 @@ private struct BrowsePanelView: View {
         } else {
             Color.black.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-}
-
-// MARK: - Date Compare View
-
-struct DateCompareView: View {
-    /// Called with (lastWeekImage, thisWeekImage) when user taps "+ Add pair"
-    let onAddPair: (NSImage?, NSImage?) -> Void
-
-    @EnvironmentObject var appState: AppState
-    @StateObject private var dcLoader = DateCompareLoader()
-    @State private var leftDateKey:  String? = nil
-    @State private var rightDateKey: String? = nil
-    @State private var leftIndex    = 0
-    @State private var rightIndex   = 0
-    @State private var linkedIndex  = 0
-    @State private var linked       = false
-    @State private var dcKeyMonitor: Any? = nil
-    @State private var dcAIMatches:  [PoseMatch] = []
-    @State private var dcAIMatchIdx  = 0
-    @State private var dcAILoading   = false
-    @State private var dcAIError:    String? = nil
-
-    var body: some View {
-        VStack(spacing: 0) {
-            contactBar
-            Divider()
-
-            if dcLoader.selectedContact == nil {
-                emptyState("Select a client above to get started")
-            } else if dcLoader.dates.isEmpty {
-                emptyState("No photos found for this client")
-            } else {
-                HStack(spacing: 0) {
-                    photoSide(title: "LAST WEEK",
-                              dateKey: $leftDateKey,
-                              photos: dcLoader.leftPhotos,
-                              loading: dcLoader.isLoadingLeft,
-                              index: linked ? $linkedIndex : $leftIndex,
-                              side: .left)
-
-                    Rectangle().fill(Color.white.opacity(0.2)).frame(width: 2)
-
-                    photoSide(title: "THIS WEEK",
-                              dateKey: $rightDateKey,
-                              photos: dcLoader.rightPhotos,
-                              loading: dcLoader.isLoadingRight,
-                              index: linked ? $linkedIndex : $rightIndex,
-                              side: .right)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
-            }
-
-            Divider()
-            addBar
-        }
-        .onAppear  { startDCKeyMonitor() }
-        .onDisappear { stopDCKeyMonitor() }
-        // Trigger loads when dates change
-        .onChange(of: leftDateKey) { _, key in
-            leftIndex = 0
-            if let key, let contact = dcLoader.selectedContact {
-                Task { await dcLoader.loadSide(.left, contact: contact, dateKey: key) }
-            }
-        }
-        .onChange(of: rightDateKey) { _, key in
-            rightIndex = 0
-            if let key, let contact = dcLoader.selectedContact {
-                Task { await dcLoader.loadSide(.right, contact: contact, dateKey: key) }
-            }
-        }
-        .onChange(of: dcLoader.selectedContact) { _, contact in
-            appState.whatsAppClientName = contact
-            leftDateKey = nil; rightDateKey = nil
-            leftIndex = 0; rightIndex = 0
-            if let c = contact { Task { await dcLoader.loadDates(for: c) } }
-        }
-    }
-
-    // MARK: AI helpers
-
-    private func dcRunAI(leftURLs: [URL], rightURLs: [URL]) {
-        guard !leftURLs.isEmpty, !rightURLs.isEmpty else { return }
-        dcAILoading = true; dcAIError = nil; dcAIMatches = []
-        Task {
-            do {
-                let matches   = try await AIMatchEngine.shared.matchPoses(leftURLs: leftURLs,
-                                                                           rightURLs: rightURLs)
-                dcAIMatches   = matches
-                dcAIMatchIdx  = 0
-                if let first  = matches.first {
-                    leftIndex  = first.leftIndex
-                    rightIndex = first.rightIndex
-                }
-            } catch { dcAIError = error.localizedDescription }
-            dcAILoading = false
-        }
-    }
-
-    private func dcStepAI(_ delta: Int) {
-        let next = dcAIMatchIdx + delta
-        guard dcAIMatches.indices.contains(next) else { return }
-        dcAIMatchIdx = next
-        leftIndex    = dcAIMatches[next].leftIndex
-        rightIndex   = dcAIMatches[next].rightIndex
-    }
-
-    // MARK: Keyboard
-
-    private func startDCKeyMonitor() {
-        dcKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if isTextInputFocused() { return event }
-            let isLeft  = event.keyCode == 123
-            let isRight = event.keyCode == 124
-            guard isLeft || isRight else { return event }
-            if !self.dcAIMatches.isEmpty {
-                if isLeft  { self.dcStepAI(-1) }
-                if isRight { self.dcStepAI(1) }
-                return nil
-            }
-            let lCount = self.dcLoader.leftPhotos.count
-            let rCount = self.dcLoader.rightPhotos.count
-            let opt    = event.modifierFlags.contains(.option)
-            if self.linked {
-                let cap = max(lCount, rCount)
-                if isLeft  { self.linkedIndex = max(0, self.linkedIndex - 1) }
-                if isRight { self.linkedIndex = min(cap - 1, self.linkedIndex + 1) }
-            } else if opt {
-                if isLeft  { self.rightIndex = max(0, self.rightIndex - 1) }
-                if isRight { self.rightIndex = min(rCount - 1, self.rightIndex + 1) }
-            } else {
-                if isLeft  { self.leftIndex = max(0, self.leftIndex - 1) }
-                if isRight { self.leftIndex = min(lCount - 1, self.leftIndex + 1) }
-            }
-            return nil
-        }
-    }
-
-    private func stopDCKeyMonitor() {
-        if let m = dcKeyMonitor { NSEvent.removeMonitor(m); dcKeyMonitor = nil }
-    }
-
-    // MARK: Sub-views
-
-    private var contactBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "person.fill").foregroundColor(.secondary).font(.caption)
-
-            if dcLoader.isLoadingContacts {
-                ProgressView().scaleEffect(0.7)
-            } else {
-                Picker("Client", selection: $dcLoader.selectedContact) {
-                    Text("Select client…").tag(String?.none)
-                    ForEach(dcLoader.contacts) { c in
-                        Text("\(c.name)  (\(c.photoCount))").tag(Optional(c.name))
-                    }
-                }
-                .labelsHidden().frame(width: 240)
-            }
-
-            Divider().frame(height: 20)
-
-            Toggle(isOn: $linked) {
-                Label("Sync arrows", systemImage: linked ? "link" : "link.badge.plus")
-                    .font(.caption)
-            }
-            .toggleStyle(.checkbox)
-            .onChange(of: linked) { _, on in if on { linkedIndex = leftIndex } }
-
-            Divider().frame(height: 20)
-
-            if !dcAIMatches.isEmpty {
-                HStack(spacing: 8) {
-                    Button { dcStepAI(-1) } label: { Image(systemName: "chevron.left") }
-                        .buttonStyle(.plain).disabled(dcAIMatchIdx == 0)
-                    Text("AI: \(dcAIMatches[dcAIMatchIdx].pose.capitalized)  \(dcAIMatchIdx+1)/\(dcAIMatches.count)")
-                        .font(.caption.bold()).foregroundColor(.blue)
-                    Button { dcStepAI(1) } label: { Image(systemName: "chevron.right") }
-                        .buttonStyle(.plain).disabled(dcAIMatchIdx == dcAIMatches.count - 1)
-                    Button("Clear") { dcAIMatches = []; dcAIMatchIdx = 0 }
-                        .buttonStyle(.link).font(.caption)
-                }
-            } else if dcAILoading {
-                ProgressView().scaleEffect(0.7)
-                Text("Matching poses…").font(.caption).foregroundColor(.secondary)
-            } else {
-                Button {
-                    dcRunAI(leftURLs:  dcLoader.leftPhotos.map(\.url),
-                            rightURLs: dcLoader.rightPhotos.map(\.url))
-                } label: {
-                    Label("AI Match", systemImage: "sparkles").font(.caption.weight(.medium))
-                }
-                .buttonStyle(.bordered)
-                .disabled(dcLoader.leftPhotos.isEmpty || dcLoader.rightPhotos.isEmpty)
-                .help("Automatically pair matching poses using AI")
-            }
-
-            if let err = dcAIError {
-                Text(err).font(.caption).foregroundColor(.red).lineLimit(1)
-            }
-
-            Spacer()
-            Text("Pick dates · AI Match or use arrows · tap + Add")
-                .font(.caption).foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-    }
-
-    private var addBar: some View {
-        HStack(spacing: 14) {
-            let leftItem  = dcLoader.leftPhotos.indices.contains(leftIndex)  ? dcLoader.leftPhotos[leftIndex]  : nil
-            let rightItem = dcLoader.rightPhotos.indices.contains(rightIndex) ? dcLoader.rightPhotos[rightIndex] : nil
-
-            Button("+ Add this pair to comparison") {
-                Task.detached {
-                    let l = leftItem.flatMap  { NSImage(contentsOf: $0.url) }
-                    let r = rightItem.flatMap { NSImage(contentsOf: $0.url) }
-                    await MainActor.run { onAddPair(l, r) }
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(leftItem == nil && rightItem == nil)
-
-            Spacer()
-
-            Text("After adding pairs, switch to Manual mode to export the comparison")
-                .font(.caption).foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-    }
-
-    private func emptyState(_ msg: String) -> some View {
-        BrandEmptyState(icon: "person.crop.square.badge.camera",
-                        title: "pick a client",
-                        subtitle: msg.lowercased())
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Brand.bg)
-    }
-
-    // MARK: Photo side panel
-
-    private func photoSide(title: String,
-                            dateKey: Binding<String?>,
-                            photos: [WhatsAppMediaItem],
-                            loading: Bool,
-                            index: Binding<Int>,
-                            side: DateCompareLoader.Side) -> some View {
-        VStack(spacing: 0) {
-            // Header: label + date picker + arrows
-            VStack(spacing: 6) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.65))
-
-                Picker("", selection: dateKey) {
-                    Text("Pick a date…").tag(String?.none)
-                    ForEach(dcLoader.dates) { d in
-                        Text(d.displayString).tag(Optional(d.key))
-                    }
-                }
-                .labelsHidden()
-                .colorScheme(.dark)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 12)
-
-                if !photos.isEmpty {
-                    HStack(spacing: 16) {
-                        Button {
-                            index.wrappedValue = max(0, index.wrappedValue - 1)
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 18, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(index.wrappedValue == 0 ? .white.opacity(0.25) : .white)
-                        .disabled(index.wrappedValue == 0)
-
-                        Text("\(index.wrappedValue + 1) / \(photos.count)")
-                            .font(.system(.caption, design: .monospaced).bold())
-                            .foregroundColor(.white)
-
-                        Button {
-                            index.wrappedValue = min(photos.count - 1, index.wrappedValue + 1)
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 18, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(index.wrappedValue == photos.count - 1 ? .white.opacity(0.25) : .white)
-                        .disabled(index.wrappedValue == photos.count - 1)
-                    }
-                }
-            }
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
-            .background(Color.black.opacity(0.5))
-
-            Divider().background(Color.white.opacity(0.15))
-
-            // Photo area
-            Group {
-                if loading {
-                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if photos.isEmpty {
-                    Brand.bg.overlay(
-                        BrandEmptyState(icon: dateKey.wrappedValue == nil ? "calendar" : "photo.on.rectangle",
-                                        title: dateKey.wrappedValue == nil ? "pick a date" : "no photos",
-                                        subtitle: dateKey.wrappedValue == nil ? "choose a check-in date above" : "no photos on this date",
-                                        iconSize: 20, boxSize: 48)
-                    )
-                } else if photos.indices.contains(index.wrappedValue) {
-                    let item = photos[index.wrappedValue]
-                    ZStack {
-                        Color.black
-                        if let t = item.thumb {
-                            ZoomablePhoto { WatermarkedImage(image: t) }
-                                .id(item.id)   // reset zoom when the photo changes
-                        } else {
-                            ProgressView()
-                        }
-                    }
-                } else {
-                    Color.black
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
