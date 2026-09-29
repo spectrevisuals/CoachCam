@@ -15,6 +15,7 @@ struct CoachCapApp: App {
         // so corruptions surface even when a coach doesn't mention them. Filenames (which hold
         // client names) are never sent — see DiagnosticsReporter.
         DiagnosticsReporter.scanRecordingsFolder()
+        Task { @MainActor in Analytics.setup() }
     }
 
     // Sparkle: starts the updater, which performs scheduled background checks

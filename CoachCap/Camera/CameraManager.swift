@@ -37,6 +37,11 @@ final class CameraManager: NSObject, ObservableObject {
     /// reads this to notice when an external camera stops delivering (a USB pull) seconds
     /// before macOS posts the disconnect notification. 0 until the first frame.
     nonisolated(unsafe) var lastFrameAt: Double = 0
+    /// DEV/TEST ONLY (autotest): when > 0 and uptime passes it, the camera goes silent —
+    /// frames are dropped before the heartbeat, mimicking a yanked USB camera so the
+    /// cam-stall watchdog (stop + salvage) can be exercised end-to-end. Armed by
+    /// RecordingSession.start from the hidden `simulateCameraStallAfterSeconds` key.
+    nonisolated(unsafe) var simulateStallDeadline: Double = 0
 
     private var activeObserver: NSObjectProtocol?
     private var deviceObservers: [NSObjectProtocol] = []
@@ -262,6 +267,8 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             NSLog("DEBUG CameraManager: No pixel buffer in sample")
             return
         }
+        // DEV/TEST: simulated camera death — stop the heartbeat + frames (see autotest).
+        if simulateStallDeadline > 0, ProcessInfo.processInfo.systemUptime > simulateStallDeadline { return }
         lastFrameAt = ProcessInfo.processInfo.systemUptime
         bufferLock.lock(); _latestBuffer = pb; bufferLock.unlock()
 

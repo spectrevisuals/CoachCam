@@ -108,9 +108,27 @@ private struct FloatingCameraView: View {
     private let minDiameter: CGFloat = 90
     private let maxDiameter: CGFloat = 380
 
-    // Orange branded ring around the circle — scales gently with the cam size.
+    // The float cam sits ON the recorded screen, so it's client-facing: when the coach has
+    // set up branding, the ring, rim badge and accent buttons all take THEIR brand instead
+    // of CoachCam orange. Observed so settings changes apply live.
+    @ObservedObject private var branding = BrandingStore.shared
+    private var accent: Color {
+        branding.primaryColor.map { Color(nsColor: $0) } ?? Brand.accent
+    }
+    private var accentLight: Color {
+        branding.primaryColor.map { Color(nsColor: $0.blended(withFraction: 0.3, of: .white) ?? $0) }
+            ?? Brand.accent2
+    }
+    // The ring has its own colour setting; unset it follows primary, then CoachCam orange.
+    private var ringBase: NSColor? { branding.ringColor ?? branding.primaryColor }
+    private var ringColor: Color { ringBase.map { Color(nsColor: $0) } ?? Brand.accent }
+    private var ringColorLight: Color {
+        ringBase.map { Color(nsColor: $0.blended(withFraction: 0.3, of: .white) ?? $0) } ?? Brand.accent2
+    }
+
+    // Branded ring around the circle — scales gently with the cam size.
     private var ringWidth: CGFloat { max(3, d * 0.025) }
-    // Small "CC" logo watermark size.
+    // Small rim-badge size (CC mark, or the coach's logo when set).
     private var badgeSize: CGFloat { max(22, min(40, d * 0.16)) }
 
     var body: some View {
@@ -204,32 +222,51 @@ private struct FloatingCameraView: View {
 
         }
         .frame(width: d, height: d)
-        // Crisp orange branded ring instead of the old jagged shadow halo.
+        // Crisp branded ring (coach's ring colour → primary → CoachCam orange).
         .overlay(
             Circle()
                 .strokeBorder(
-                    LinearGradient(colors: [Brand.accent2, Brand.accent],
+                    LinearGradient(colors: [ringColorLight, ringColor],
                                    startPoint: .topLeading, endPoint: .bottomTrailing),
                     lineWidth: ringWidth)
         )
-        // Small "CC" logo badge nestled on the lower-right rim. The corner of the square
-        // bounding box sits outside the circular feed, so the mark never covers the camera.
+        // Small logo badge nestled on the lower-right rim — the coach's logo when they've
+        // uploaded one, the CC mark otherwise. The corner of the bounding box sits outside
+        // the circular feed, so the mark never covers the camera.
         .overlay(alignment: .bottomTrailing) {
-            ccBadge.padding([.bottom, .trailing], max(3, d * 0.02))
+            rimBadge.padding([.bottom, .trailing], max(3, d * 0.02))
         }
         .shadow(color: .black.opacity(0.45), radius: 10, y: 3)
     }
 
-    // The "CC" app-mark, pinned to the lower-right rim as a subtle brand badge.
-    private var ccBadge: some View {
-        Image("CCBadge")
-            .resizable()
-            .interpolation(.high)
-            .frame(width: badgeSize, height: badgeSize)
-            .clipShape(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous)
-                .stroke(Color.white.opacity(0.9), lineWidth: 1.5))
-            .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+    // The rim badge: coach's logo (on a white chip so any logo reads, width follows the
+    // logo's aspect up to ~2.2×) or the CC app-mark as the default.
+    @ViewBuilder
+    private var rimBadge: some View {
+        if let logo = branding.logoImage, logo.size.width > 0, logo.size.height > 0 {
+            let aspect = logo.size.width / logo.size.height
+            let w = min(badgeSize * max(1, aspect), badgeSize * 2.2)
+            Image(nsImage: logo)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .padding(badgeSize * 0.12)
+                .frame(width: w, height: badgeSize)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous)
+                    .stroke(Color.white.opacity(0.9), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+        } else {
+            Image("CCBadge")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: badgeSize, height: badgeSize)
+                .clipShape(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: badgeSize * 0.28, style: .continuous)
+                    .stroke(Color.white.opacity(0.9), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+        }
     }
 
     // MARK: Controls
@@ -242,7 +279,7 @@ private struct FloatingCameraView: View {
                     Text("start").font(.system(size: 13, weight: .semibold))
                         .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(FloatButtonStyle(color: Brand.accent))
+                .buttonStyle(FloatButtonStyle(color: accent))
 
                 Button(action: onCancelCountdown) {
                     Text("cancel").font(.system(size: 13, weight: .semibold))
@@ -258,7 +295,7 @@ private struct FloatingCameraView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(FloatButtonStyle(color: appState.isPaused ? Color(hex: 0x28C840) : Brand.accent))
+                .buttonStyle(FloatButtonStyle(color: appState.isPaused ? Color(hex: 0x28C840) : accent))
 
                 // Draw-on-screen toggle — highlighted while drawing.
                 Button(action: onAnnotateToggle) {
@@ -266,7 +303,7 @@ private struct FloatingCameraView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(FloatButtonStyle(color: appState.isAnnotating ? Brand.accent2 : Color(white: 0.25)))
+                .buttonStyle(FloatButtonStyle(color: appState.isAnnotating ? accentLight : Color(white: 0.25)))
                 .help("Draw on screen — tap, then drag to draw lines. Tap again to stop drawing.")
 
                 // Pen vs straight-line tool — only while drawing, so the row stays uncluttered.
@@ -276,7 +313,7 @@ private struct FloatingCameraView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .frame(maxWidth: .infinity, minHeight: 34)
                     }
-                    .buttonStyle(FloatButtonStyle(color: appState.annotationStraightLine ? Brand.accent : Color(white: 0.25)))
+                    .buttonStyle(FloatButtonStyle(color: appState.annotationStraightLine ? accent : Color(white: 0.25)))
                     .help("Straight line or freehand pen (Shift also draws a straight line)")
                 }
 
@@ -311,7 +348,7 @@ private struct FloatingCameraView: View {
                 Button(action: onCustomArea) {
                     Image(systemName: appState.customArea == nil ? "rectangle.dashed" : "rectangle.dashed.badge.record")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(appState.customArea == nil ? .white : Brand.accent)
+                        .foregroundColor(appState.customArea == nil ? .white : accent)
                         .frame(width: 38, height: 34)
                 }
                 .buttonStyle(FloatButtonStyle(color: Color(white: 0.25)))

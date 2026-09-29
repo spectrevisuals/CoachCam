@@ -39,6 +39,7 @@ enum WhatsAppShare {
     /// Opens WhatsApp (to the client's chat if we can resolve their number) and reveals the
     /// finished video in Finder so the coach can drag it straight into that chat.
     static func sendToWhatsApp(videoURL url: URL, clientName: String?) {
+        Analytics.track("whatsapp_send")
         // Don't hand off a half-written file. session.stop() awaits finishWriting, so by here
         // it's complete — but verify it exists and is non-empty.
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0

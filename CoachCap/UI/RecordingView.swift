@@ -12,6 +12,7 @@ struct RecordingView: View {
     @ObservedObject private var licenseManager = LicenseManager.shared
 
     @State private var showSavedBanner = false
+    @State private var showTrimEditor = false
     @State private var floatingPanel: FloatingCameraPanel? = nil
     @State private var annotationOverlay = AnnotationOverlay()
     /// Floating "stop drawing / pen / eraser / stop & save" controls while drawing WITHOUT the
@@ -58,6 +59,7 @@ struct RecordingView: View {
             // Default the recording monitor to the one CoachCam's window is on (async: the
             // window may not be attached yet on first appear). Falls back to primary.
             DispatchQueue.main.async { syncDisplayToWindow() }
+            runAutotestIfRequested()
         }
         // Keep following the window across monitors until the coach explicitly picks one.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeScreenNotification)) { notif in
@@ -89,6 +91,31 @@ struct RecordingView: View {
                 // path clears isRecording first, so this only runs for an unexpected stop —
                 // ending the session and surfacing the salvaged clip + reason right away.
                 if appState.isRecording { handleUnexpectedStop() }
+            }
+        }
+        // Every saved recording (normal stop AND salvaged unexpected-stop both set
+        // lastSavedURL) also gets copied to the coach's backup folder, if one is set.
+        // Runs entirely after finalize — never touches the recording pipeline.
+        .onChange(of: appState.lastSavedURL) { _, url in
+            guard let url else { return }
+            Analytics.track(url.lastPathComponent.contains("_edited") ? "edited_copy_saved" : "recording_saved")
+            appState.lastBackupURL = nil
+            let folder = BrandingStore.shared.backupFolderPath
+            guard !folder.isEmpty else { appState.backupNote = nil; return }
+            appState.backupNote = "backing up…"
+            BackupManager.backup(url, toFolderPath: folder) { dest, failure in
+                appState.lastBackupURL = dest
+                appState.backupNote = failure ?? "backed up ✓"
+                Analytics.track("backup_finished", ["ok": failure == nil])
+            }
+        }
+        // Trim editor for the last saved recording. On save, the EDITED copy becomes the
+        // banner's file (lastSavedURL), so send-to-WhatsApp / backup / link all target it.
+        .sheet(isPresented: $showTrimEditor) {
+            if let url = appState.lastSavedURL {
+                TrimEditorSheet(url: url,
+                                onSaved: { edited in appState.lastSavedURL = edited },
+                                isPresented: $showTrimEditor)
             }
         }
         // Keep the on-screen custom-area outline in sync with the selection.
@@ -302,15 +329,44 @@ struct RecordingView: View {
                                                 ?? (appState.clientName.isEmpty ? nil : appState.clientName))
                         Button("show in finder") { ExportManager.revealInFinder(url) }
                             .buttonStyle(OutlineButtonStyle())
+                        Button {
+                            showTrimEditor = true
+                        } label: {
+                            HStack(spacing: 5) { Image(systemName: "scissors"); Text("edit") }
+                        }
+                        .buttonStyle(OutlineButtonStyle())
+                        .help("Fluffed a bit? Cut sections out and save an edited copy — the original is kept.")
                     }
                     Text("drag the highlighted video from finder into your whatsapp chat")
                         .font(Brand.font(11))
                         .foregroundStyle(Brand.muted)
                         .multilineTextAlignment(.center)
                 }
+                // Backup-folder copy status — failures must be VISIBLE, not silent, or a coach
+                // only finds out their archive is empty years later.
+                if let note = appState.backupNote {
+                    HStack(spacing: 6) {
+                        Image(systemName: note.hasSuffix("✓") ? "externaldrive.badge.checkmark"
+                              : note.hasPrefix("backing") ? "arrow.triangle.2.circlepath"
+                              : "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(note.hasSuffix("✓") ? Color(hex: 0x28C840)
+                                             : note.hasPrefix("backing") ? Brand.muted : .orange)
+                        Text(note).font(Brand.font(11))
+                            .foregroundStyle(note.hasSuffix("✓") || note.hasPrefix("backing")
+                                             ? Brand.muted : .orange)
+                        // Reveal the backed-up COPY (inside Dropbox/Drive), so right-click →
+                        // "Copy Dropbox Link" gives a streaming link for check-in apps.
+                        if let backupURL = appState.lastBackupURL {
+                            Button("show backup") { ExportManager.revealInFinder(backupURL) }
+                                .buttonStyle(LinkButtonStyle())
+                                .help("Need a link instead of a file? Reveal the backup, right-click it and choose 'Copy Dropbox Link' (or your cloud's share option) — paste that into your check-in app.")
+                        }
+                    }
+                }
             }
             .padding(16)
-            .frame(width: 380)
+            .frame(width: 430)
             .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous).stroke(Brand.border, lineWidth: 1))
@@ -686,8 +742,13 @@ struct RecordingView: View {
             pipNormalizedRect: appState.pipRect,
             selectedMicID: appState.selectedMicID,
             displayID: appState.webcamOnlyMode ? nil : (usingCustomArea ? appState.customAreaDisplayID : chosenDisplay?.id),
-            sourceRect: usingCustomArea ? appState.customArea : nil
+            sourceRect: usingCustomArea ? appState.customArea : nil,
+            brandLogoCG: BrandingStore.shared.videoLogoCG()
         )
+        Analytics.track("recording_started", [
+            "mode": appState.webcamOnlyMode ? "webcam_only" : (usingCustomArea ? "custom_area" : "screen"),
+            "float_cam": floatingPanel != nil,
+        ])
         Task {
             do {
                 try await session.start(config: config, camera: camera,
@@ -746,6 +807,7 @@ struct RecordingView: View {
     /// result and present it: the salvaged clip as a sendable banner if there's anything
     /// usable, plus the reason. Mirrors the tail of stopAndSave().
     private func handleUnexpectedStop() {
+        Analytics.track("recording_interrupted")
         appState.isRecording = false
         appState.stopTimer()
         appState.isSaving = false
@@ -764,6 +826,74 @@ struct RecordingView: View {
             }
             if appState.soundEffectsEnabled { AppSounds.shared.playStop() }
             withAnimation { showSavedBanner = true }
+        }
+    }
+
+    // MARK: Autotest driver (dev/CI only)
+
+    /// Scripted end-to-end runs for `autotest.sh`. Armed by launching the app with
+    /// `-autotest <scenario>` (macOS folds `-key value` arguments into UserDefaults):
+    ///   baseline      record ~8 s and stop normally
+    ///   screen-stall  with -simulateVideoStallAfterSeconds N → watchdog must stop + salvage
+    ///   camera-stall  with -simulateCameraStallAfterSeconds N → same
+    ///   mic-stall     with -simulateMicStallAfterSeconds N → same
+    ///   pause-resume  4 s record, 3 s pause, 4 s record
+    /// Writes a JSON verdict to `-autotestOut <path>` and quits. The harness then verifies the
+    /// produced file (ffprobe) and the finalize diagnostics in the error log.
+    private func runAutotestIfRequested() {
+        guard let scenario = UserDefaults.standard.string(forKey: "autotest"), !scenario.isEmpty else { return }
+        let outPath = UserDefaults.standard.string(forKey: "autotestOut")
+            ?? NSTemporaryDirectory() + "coachcam-autotest.json"
+        Task { @MainActor in
+            func wait(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1_000_000_000)) }
+            await wait(3)   // camera + permissions settle
+            appState.countdownEnabled = false
+            appState.soundEffectsEnabled = false
+            appState.hideWindowWhileRecording = false
+            appState.clientName = "Autotest-\(scenario)"
+            startWithCountdown()
+            var waited = 0.0
+            while !session.isRunning && waited < 15 { await wait(0.5); waited += 0.5 }
+            let started = session.isRunning
+
+            switch scenario {
+            case "baseline":
+                await wait(8)
+                if session.isRunning { stopAndSave() }
+            case "pause-resume":
+                await wait(4)
+                session.pause();  appState.isPaused = true;  appState.pauseTimer()
+                await wait(3)
+                session.resume(); appState.isPaused = false; appState.resumeTimer()
+                await wait(4)
+                if session.isRunning { stopAndSave() }
+            default:
+                // Failure-injection scenario: the armed simulate* key silences the feed; the
+                // watchdog must stop + salvage BY ITSELF. Give it up to 40 s.
+                waited = 0
+                while session.isRunning && waited < 40 { await wait(0.5); waited += 0.5 }
+                let watchdogFired = !session.isRunning
+                if !watchdogFired { stopAndSave() }
+                if !watchdogFired {
+                    RecordingSession.appendErrorLog("AUTOTEST FAIL: watchdog never fired for \(scenario)")
+                }
+            }
+
+            waited = 0
+            while (appState.isSaving || appState.lastSavedURL == nil) && waited < 90 { await wait(0.5); waited += 0.5 }
+            let verdict: [String: Any] = [
+                "scenario": scenario,
+                "started": started,
+                "savedPath": appState.lastSavedURL?.path as Any,
+                "partialNote": session.lastSavePartialNote as Any,
+                "errorMessage": appState.errorMessage as Any,
+                "backupNote": appState.backupNote as Any,
+            ]
+            if let data = try? JSONSerialization.data(withJSONObject: verdict, options: [.prettyPrinted]) {
+                try? data.write(to: URL(fileURLWithPath: outPath))
+            }
+            await wait(1.5)   // let the error log flush
+            NSApp.terminate(nil)
         }
     }
 

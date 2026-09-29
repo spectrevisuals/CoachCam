@@ -38,6 +38,10 @@ nastiest regressions live.
 ## Devices
 - [ ] Plug in a camera or mic while the app is open → it appears in the pickers **without relaunching**.
 
+## v1.9.4 regression guards (2026-09-28)
+- [ ] `xcodebuild test` — full unit suite green (38 tests: trim maths, transcript search, bitrate tiers, display sizing, stitch geometry, photo dedup).
+- [ ] `bash autotest.sh` — all 5 E2E scenarios pass (baseline, pause-resume, screen/camera/mic stall salvage).
+
 ## v1.9.3 regression guards (2026-09-03)
 - [ ] **Audio complete on every mic**: record ~20s; log shows `dropMono=0` and `effHz[mic]` ≈ `audioHz[mic]` (±3%). *(The 1ns-rounding drop bug — guard must SPLICE, never drop micro-overlaps.)*
 - [ ] **Toggling draw does NOT move/zoom the app window.** *(windowResizability(.contentSize) + fixedSize buttons — annotation UI must stay layout-neutral.)*

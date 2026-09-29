@@ -83,6 +83,13 @@ final class AppState: ObservableObject {
 
     // Last saved file (for "Show in Finder" button)
     @Published var lastSavedURL: URL? = nil
+    /// Status of the post-save copy to the coach's backup folder (nil = backups off / idle).
+    /// Shown in the saved banner: "backing up…" → "backed up ✓" or a failure message.
+    @Published var backupNote: String? = nil
+    /// The backed-up COPY of the last recording (inside the coach's Dropbox/Drive/iCloud
+    /// folder) — revealed by the banner's "show backup" so the coach can right-click it and
+    /// Copy Link for check-in apps that want a link instead of a file.
+    @Published var lastBackupURL: URL? = nil
 
     // Error shown in a sheet/alert
     @Published var errorMessage: String? = nil

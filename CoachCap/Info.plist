@@ -17,13 +17,15 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.9.3</string>
+	<string>1.9.4</string>
 	<key>CFBundleVersion</key>
-	<string>63</string>
+	<string>72</string>
 	<key>NSCameraUsageDescription</key>
 	<string>CoachCap uses your camera to record a face-cam overlay on your screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>CoachCap uses your microphone to record audio commentary with your screen recordings.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>CoachCam transcribes recordings on your Mac so you can search for a word and jump straight to it while editing. Audio never leaves your Mac.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

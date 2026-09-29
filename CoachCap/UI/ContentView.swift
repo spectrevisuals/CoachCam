@@ -6,6 +6,7 @@ struct ContentView: View {
     @ObservedObject private var licenseManager = LicenseManager.shared
     @State private var showTranslocationAlert = false
     @State private var showHelp = false
+    @State private var showSettings = false
     @State private var helpIsFirstRun = false
     /// Set once we've auto-shown the "how it works" guide, so it only pops up the first launch.
     @AppStorage("hasSeenGuide") private var hasSeenGuide = false
@@ -47,6 +48,9 @@ struct ContentView: View {
             .sheet(isPresented: $showHelp) {
                 HelpGuideView(isPresented: $showHelp, firstRun: helpIsFirstRun)
             }
+            .sheet(isPresented: $showSettings) {
+                SettingsSheet(isPresented: $showSettings)
+            }
             .onAppear {
                 checkTranslocation()
                 // Auto-show the guide once, the first time someone reaches the unlocked app.
@@ -69,9 +73,18 @@ struct ContentView: View {
             ])
             .frame(width: 300)
 
-            // "?" help button — parks on the right, clear of the centred tabs.
-            HStack {
+            // "?" help + ⚙ settings — park on the right, clear of the centred tabs.
+            // Both ALWAYS present (never conditional): with windowResizability(.contentSize),
+            // appearing/disappearing fixed-width chrome resizes the whole window.
+            HStack(spacing: 14) {
                 Spacer()
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Brand.muted)
+                }
+                .buttonStyle(.plain)
+                .help("settings — backups & your branding")
                 Button {
                     helpIsFirstRun = false
                     showHelp = true

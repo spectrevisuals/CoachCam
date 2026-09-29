@@ -10,6 +10,9 @@ struct RecordingConfig {
     var selectedMicID: String?
     var displayID: CGDirectDisplayID?   // which monitor to capture; nil = primary
     var sourceRect: CGRect? = nil       // custom-area crop (display points, top-left origin); nil = whole display
+    /// Coach's logo to burn into the top-right of every frame (nil = none). Snapshotted at
+    /// recording start so nothing mutates on the encode queue mid-recording.
+    var brandLogoCG: CGImage? = nil
 
     // Auto-selects bitrate so 2-5 min clips fit in WhatsApp's ~16 MB limit.
     static func videoBitrate(for size: CGSize) -> Int {

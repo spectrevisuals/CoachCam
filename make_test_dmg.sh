@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP="build/export/CoachCam.app"
-DMG="$HOME/Downloads/CoachCam-v1.9.3-rc-test21.dmg"
+DMG="$HOME/Downloads/CoachCam-v1.9.4-test9.dmg"
 
 [ -d "$APP" ] || { echo "✗ $APP missing — re-run the export first"; exit 1; }
 

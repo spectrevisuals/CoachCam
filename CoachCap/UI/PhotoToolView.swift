@@ -345,6 +345,7 @@ struct PhotoToolView: View {
         let pairsSnap = pairs.map { ($0.before, $0.after) }
         Task.detached(priority: .userInitiated) {
             do {
+                Analytics.track("photo_export")
                 guard let img = PhotoStitcher.stitch(pairs: pairsSnap, options: opts) else {
                     throw StitchError.renderFailed
                 }
@@ -368,6 +369,19 @@ struct PhotoToolView: View {
         var o = PhotoStitcher.Options()
         o.showColumnHeaders = showHeaders
         o.clientName = exportClientName.trimmingCharacters(in: .whitespaces)
+        // Coach branding on the client-facing export: logo in the top band, secondary colour
+        // behind the header/name, primary colour for the column dividers.
+        let branding = BrandingStore.shared
+        o.logo = branding.logoImage
+        if let secondary = branding.secondaryColor {
+            o.headerBackground = secondary
+            // Keep the client name + headers readable whatever colour the coach picked.
+            if let s = secondary.usingColorSpace(.sRGB) {
+                let luminance = 0.299 * s.redComponent + 0.587 * s.greenComponent + 0.114 * s.blueComponent
+                o.headerColor = luminance > 0.6 ? .black : .white
+            }
+        }
+        if let primary = branding.primaryColor { o.dividerColor = primary }
         return o
     }
 }

@@ -28,6 +28,8 @@ struct HelpGuideView: View {
                             "while recording, hit **draw** to sketch red lines over anything on screen — switch between **pen** and **straight line**, and the **eraser** clears them. perfect for showing where a movement should go.",
                             "**custom area** — record just part of the screen (loom-style): click *custom area*, drag a box, and an orange outline shows exactly what's captured and stays on screen as you record. click again to clear it.",
                             "**pause / resume** any time — the paused bits are skipped, no editing needed.",
+                            "fluffed a bit mid-recording? hit **edit** on the saved popup — mark the section, **cut it** (as many times as you need), preview with cuts skipped, and save an edited copy. your original is always kept.",
+                            "can't find where you said it? in the editor, type a word or phrase in **find in recording** — the first search transcribes the clip *on your Mac* (nothing is uploaded, ~20 seconds), then you jump straight to every place it was said.",
                             "webcam-only? switch off the screen source for a plain talking-head clip."
                         ]
                     )
@@ -70,6 +72,17 @@ struct HelpGuideView: View {
                         lines: [
                             "CoachCam can read the photos your clients send you in whatsapp, so you don't have to save each one.",
                             "this needs **full disk access** (whatsapp keeps its photos in a protected folder). if the client list or photos are empty, that permission is almost always why — see below."
+                        ]
+                    )
+
+                    section(
+                        icon: "gearshape",
+                        title: "make it yours (⚙ settings)",
+                        lines: [
+                            "**auto-backup**: pick a backup folder in settings and every recording is also copied there. point it at a folder in **iCloud Drive** (nothing to install), **Google Drive**, or **Dropbox** and your check-ins upload themselves — your storage, kept as long as you need. *dropbox tip: turn on selective sync so it doesn't pull your whole account onto this Mac.*",
+                            "**your branding**: upload your business logo and pick your brand colours. the logo appears on your recordings (toggle it in settings) and, with your colours, on exported before/after comparisons — so everything your clients receive carries your brand.",
+                            "the saved-recording popup shows a small **backed up ✓** (or a warning if the copy failed) so you always know your archive is safe.",
+                            "**need a link instead of a file** (check-in apps like Trainerize)? back up to a Dropbox folder, hit **show backup** on the saved popup, then right-click the file → **Copy Dropbox Link** — paste that into your app and your client streams it in the browser."
                         ]
                     )
 

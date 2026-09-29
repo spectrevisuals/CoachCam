@@ -9,6 +9,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.9.3"
+  AmplitudeSwift:
+    url: https://github.com/amplitude/Amplitude-Swift
+    from: "1.19.0"
 
 
 settings:
@@ -41,14 +44,16 @@ targets:
       - path: CoachCap/Assets.xcassets
     dependencies:
       - package: Sparkle
+      - package: AmplitudeSwift
     info:
       path: CoachCap/Info.plist
       properties:
-        CFBundleShortVersionString: "1.9.3"
-        CFBundleVersion: "63"
+        CFBundleShortVersionString: "1.9.4"
+        CFBundleVersion: "72"
         CFBundleIconName: AppIcon
         NSCameraUsageDescription: "CoachCap uses your camera to record a face-cam overlay on your screen recordings."
         NSMicrophoneUsageDescription: "CoachCap uses your microphone to record audio commentary with your screen recordings."
+        NSSpeechRecognitionUsageDescription: "CoachCam transcribes recordings on your Mac so you can search for a word and jump straight to it while editing. Audio never leaves your Mac."
         SUFeedURL: "https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/appcast.xml"
         SUPublicEDKey: "rduKIaou/mAjUKF6/eOVw5+kc2grUFBw1kncIoqqRaA="
         SUEnableAutomaticChecks: true
@@ -74,6 +79,11 @@ targets:
     sources:
       - path: Tests
       - path: CoachCap/PhotoTool/PhotoMatching.swift
+      - path: CoachCap/Export/VideoTrimmer.swift
+      - path: CoachCap/Export/VideoTranscriber.swift
+      - path: CoachCap/Models/RecordingConfig.swift
+      - path: CoachCap/Recording/DisplayList.swift
+      - path: CoachCap/PhotoTool/PhotoStitcher.swift
     settings:
       base:
         PRODUCT_NAME: CoachCapTests

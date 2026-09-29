@@ -156,6 +156,7 @@ final class RecordingSession: NSObject, ObservableObject {
         lastVideoAdvanceAt = 0
         lastVideoCount = 0
         simulateStallDeadline = 0
+        simulateMicStallDeadline = 0
         freeTimerTask?.cancel()
         recordingTimeRemaining = nil
         watchdogTask?.cancel(); watchdogTask = nil
@@ -311,6 +312,9 @@ final class RecordingSession: NSObject, ObservableObject {
     // the writer video after that many seconds — reproduces a silent SCStream death so the
     // stall-watchdog can be verified without touching permissions. 0 = off (normal behaviour).
     nonisolated(unsafe) private var simulateStallDeadline: Double = 0
+    /// DEV/TEST ONLY (autotest): mic goes silent past this uptime — buffers dropped BEFORE
+    /// the lastMicSampleAt heartbeat, so the mic-silence watchdog fires as if the device died.
+    nonisolated(unsafe) private var simulateMicStallDeadline: Double = 0
     // Set when capture is interrupted by a device drop, so finalize can tell the coach why.
     private var pendingInterruptionReason: String?
 
@@ -398,6 +402,9 @@ final class RecordingSession: NSObject, ObservableObject {
         // its default (off) unless the user happens to toggle the mirror button, so the saved
         // video wouldn't mirror even though the preview (and the toggle) say it should.
         compositor.mirrorCamera = camera.mirrorEnabled
+        // Coach's logo watermark (nil = none). Snapshotted into the config at start, applied
+        // once here — the encode queue only ever reads it. Video-frame overlay only.
+        compositor.brandLogo = config.brandLogoCG.map { CIImage(cgImage: $0) }
         locked {
             $0.pipRect    = config.pipNormalizedRect
             $0.outputSize = config.videoSize
@@ -521,6 +528,11 @@ final class RecordingSession: NSObject, ObservableObject {
         lastVideoAdvanceAt = ProcessInfo.processInfo.systemUptime
         let simSecs = UserDefaults.standard.integer(forKey: "simulateVideoStallAfterSeconds")
         simulateStallDeadline = simSecs > 0 ? ProcessInfo.processInfo.systemUptime + Double(simSecs) : 0
+        // Autotest failure injection (same hidden-key convention; 0 = off).
+        let micSecs = UserDefaults.standard.integer(forKey: "simulateMicStallAfterSeconds")
+        simulateMicStallDeadline = micSecs > 0 ? ProcessInfo.processInfo.systemUptime + Double(micSecs) : 0
+        let camSecs = UserDefaults.standard.integer(forKey: "simulateCameraStallAfterSeconds")
+        camera.simulateStallDeadline = camSecs > 0 ? ProcessInfo.processInfo.systemUptime + Double(camSecs) : 0
         startWatchdog()
         // Note any active camera video-effects (Reactions/Portrait/etc.) — they can't be
         // disabled programmatically but can destabilise capture, so record them for triage.
@@ -999,6 +1011,8 @@ extension RecordingSession: AVCaptureAudioDataOutputSampleBufferDelegate {
     nonisolated func captureOutput(_ output: AVCaptureOutput,
                                     didOutput sample: CMSampleBuffer,
                                     from connection: AVCaptureConnection) {
+        // DEV/TEST: simulated mic death — drop before the heartbeat so the watchdog fires.
+        if simulateMicStallDeadline > 0, ProcessInfo.processInfo.systemUptime > simulateMicStallDeadline { return }
         lastMicSampleAt = ProcessInfo.processInfo.systemUptime   // device-alive heartbeat
         guard !writerDidFail() else { return }
 

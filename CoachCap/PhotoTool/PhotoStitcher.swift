@@ -31,6 +31,9 @@ struct PhotoStitcher {
         var clientName: String        = ""
         var clientNameHeight: CGFloat = 52
         var clientNameFont: NSFont    = .systemFont(ofSize: 26, weight: .bold)
+        // Coach branding: logo drawn right-aligned in the top band (client-name banner if
+        // present, else the column-header band).
+        var logo: NSImage?            = nil
     }
 
     // MARK: - Public
@@ -68,6 +71,7 @@ struct PhotoStitcher {
         var y = totalH
 
         // Client name banner
+        var topBand: NSRect? = nil   // where the coach's logo goes
         if !options.clientName.isEmpty {
             y -= clientH
             options.headerBackground.setFill()
@@ -81,6 +85,7 @@ struct PhotoStitcher {
             str.draw(at: CGPoint(x: (maxW - sz.width) / 2,
                                  y: y + (clientH - sz.height) / 2),
                      withAttributes: attrs)
+            topBand = NSRect(x: 0, y: y, width: maxW, height: clientH)
         }
 
         // Column headers
@@ -89,6 +94,18 @@ struct PhotoStitcher {
             drawColumnHeaders(at: y, width: maxW, height: headerH,
                               rowWidth: rows.first?.size.width ?? maxW,
                               options: options)
+            if topBand == nil { topBand = NSRect(x: 0, y: y, width: maxW, height: headerH) }
+        }
+
+        // Coach's logo, right-aligned in the top band.
+        if let logo = options.logo, let band = topBand,
+           logo.size.width > 0, logo.size.height > 0 {
+            let h = band.height * 0.68
+            let w = h * (logo.size.width / logo.size.height)
+            logo.draw(in: NSRect(x: band.maxX - w - 16,
+                                 y: band.minY + (band.height - h) / 2,
+                                 width: w, height: h),
+                      from: .zero, operation: .sourceOver, fraction: 0.95)
         }
 
         // Pose rows
