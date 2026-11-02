@@ -368,7 +368,7 @@ struct RecordingView: View {
                 }
             }
             .padding(16)
-            .frame(width: 474)   // widened for the transcript button — at 430 the row clipped it
+            .frame(width: 560)   // wide enough for the labelled transcript button — at 430 the row clipped
             .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous).stroke(Brand.border, lineWidth: 1))

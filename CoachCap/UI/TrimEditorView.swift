@@ -475,7 +475,7 @@ struct TranscriptCopyButton: View {
                     Text("\(Int(progress * 100))%").font(Brand.font(11))
                 }
             } else {
-                Image(systemName: copied ? "checkmark" : "doc.on.clipboard")
+                Text(copied ? "copied ✓" : "copy transcript")
             }
         }
         .buttonStyle(OutlineButtonStyle())
