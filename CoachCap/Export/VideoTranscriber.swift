@@ -125,6 +125,29 @@ enum VideoTranscriber {
 
     /// Case/punctuation-insensitive phrase search. Each query token must match the word at
     /// that position (equal, or the word starts with it — so "record" finds "recording").
+    /// Render a transcript as readable plain text for copy/paste (e.g. into an AI summariser).
+    /// Words flow as prose; a speech gap over 2s starts a new paragraph, each opening with a
+    /// [m:ss] marker so the coach (or the AI) can still reference moments in the clip.
+    static func plainText(_ words: [Word]) -> String {
+        guard !words.isEmpty else { return "" }
+        func stamp(_ t: Double) -> String { String(format: "[%d:%02d]", Int(t) / 60, Int(t) % 60) }
+        var paragraphs: [String] = []
+        var current: [String] = []
+        var paragraphStart = words[0].time
+        var lastEnd = words[0].time
+        for w in words {
+            if w.time - lastEnd > 2.0, !current.isEmpty {
+                paragraphs.append(stamp(paragraphStart) + " " + current.joined(separator: " "))
+                current = []
+                paragraphStart = w.time
+            }
+            current.append(w.text)
+            lastEnd = w.time + w.duration
+        }
+        if !current.isEmpty { paragraphs.append(stamp(paragraphStart) + " " + current.joined(separator: " ")) }
+        return paragraphs.joined(separator: "\n\n")
+    }
+
     static func search(_ query: String, in words: [Word]) -> [Match] {
         func norm(_ s: String) -> String {
             s.lowercased().trimmingCharacters(in: .punctuationCharacters)

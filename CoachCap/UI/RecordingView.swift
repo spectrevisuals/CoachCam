@@ -336,6 +336,7 @@ struct RecordingView: View {
                         }
                         .buttonStyle(OutlineButtonStyle())
                         .help("Fluffed a bit? Cut sections out and save an edited copy — the original is kept.")
+                        TranscriptCopyButton(url: url)
                     }
                     Text("drag the highlighted video from finder into your whatsapp chat")
                         .font(Brand.font(11))

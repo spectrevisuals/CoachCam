@@ -29,6 +29,7 @@ struct TrimEditorSheet: View {
     @State private var transcribeProgress: Double = 0
     @State private var transcribeTask: Task<Void, Never>?
     @State private var searchText = ""
+    @State private var transcriptCopied = false
     @State private var matches: [VideoTranscriber.Match] = []
     @State private var matchIndex = 0
     @State private var searchNote: String?
@@ -246,6 +247,11 @@ struct TrimEditorSheet: View {
                 Button("find") { runSearch() }
                     .buttonStyle(OutlineButtonStyle())
                     .disabled(searchText.trimmingCharacters(in: .whitespaces).isEmpty)
+                // Whole-transcript copy — for pasting the check-in into an AI summariser.
+                // Reuses the same cached transcription as search; first click on an
+                // untranscribed clip runs the on-device pass, then copies.
+                Button(transcriptCopied ? "copied ✓" : "copy transcript") { copyTranscript() }
+                    .buttonStyle(OutlineButtonStyle())
             }
             if !matches.isEmpty, matches.indices.contains(matchIndex) {
                 Button { stepMatch(-1) } label: { Image(systemName: "chevron.left") }
@@ -264,6 +270,39 @@ struct TrimEditorSheet: View {
             }
             Spacer()
         }
+    }
+
+    /// Copy the full transcript as plain text (transcribing first if needed — same
+    /// on-device pass and cache as "find in recording").
+    private func copyTranscript() {
+        if let words = transcript { placeTranscriptOnClipboard(words); return }
+        guard !isTranscribing else { return }
+        searchNote = nil
+        isTranscribing = true
+        transcribeProgress = 0
+        let source = url
+        transcribeTask = Task {
+            do {
+                let words = try await VideoTranscriber.transcribe(url: source) { p in
+                    Task { @MainActor in transcribeProgress = p }
+                }
+                transcript = words
+                isTranscribing = false
+                Analytics.track("transcript_copied")
+                placeTranscriptOnClipboard(words)
+            } catch {
+                isTranscribing = false
+                if !Task.isCancelled { searchNote = error.localizedDescription }
+            }
+        }
+    }
+
+    private func placeTranscriptOnClipboard(_ words: [VideoTranscriber.Word]) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(VideoTranscriber.plainText(words), forType: .string)
+        transcriptCopied = true
+        Task { try? await Task.sleep(nanoseconds: 2_000_000_000)
+               transcriptCopied = false }
     }
 
     private func runSearch() {
@@ -412,5 +451,62 @@ private struct PlayerContainer: NSViewRepresentable {
     }
     func updateNSView(_ v: AVPlayerView, context: Context) {
         if v.player !== player { v.player = player }
+    }
+}
+
+// MARK: - Compact transcript-copy button (saved banner)
+
+/// Icon-only "copy transcript" for the saved popup — same on-device transcription + cache as
+/// the trim editor's search, so whichever runs first pays the cost and the other is instant.
+/// Lets a coach paste the whole check-in into their notes or an AI summariser without opening
+/// the editor. Icon-only because the 430pt banner row is full.
+struct TranscriptCopyButton: View {
+    let url: URL
+    @State private var working = false
+    @State private var progress: Double = 0
+    @State private var copied = false
+    @State private var errorNote: String?
+
+    var body: some View {
+        Button { copyTranscript() } label: {
+            if working {
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.small).scaleEffect(0.7)
+                    Text("\(Int(progress * 100))%").font(Brand.font(11))
+                }
+            } else {
+                Image(systemName: copied ? "checkmark" : "doc.on.clipboard")
+            }
+        }
+        .buttonStyle(OutlineButtonStyle())
+        .disabled(working)
+        .help(errorNote ?? "copy everything said in this recording as text — paste into your notes or an AI for a client summary. transcribed on this mac; audio never leaves it.")
+    }
+
+    private func copyTranscript() {
+        if let words = VideoTranscriber.cachedTranscript(for: url) { place(words); return }
+        working = true
+        progress = 0
+        let source = url
+        Task {
+            do {
+                let words = try await VideoTranscriber.transcribe(url: source) { p in
+                    Task { @MainActor in progress = p }
+                }
+                working = false
+                Analytics.track("transcript_copied")
+                place(words)
+            } catch {
+                working = false
+                errorNote = error.localizedDescription
+            }
+        }
+    }
+
+    private func place(_ words: [VideoTranscriber.Word]) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(VideoTranscriber.plainText(words), forType: .string)
+        copied = true
+        Task { try? await Task.sleep(nanoseconds: 2_000_000_000); copied = false }
     }
 }
