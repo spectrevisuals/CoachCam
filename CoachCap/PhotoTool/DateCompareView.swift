@@ -24,6 +24,13 @@ func isTextInputFocused() -> Bool {
     return responder is NSText || responder is NSTextView
 }
 
+// @MainActor is load-bearing: without it, the init's `Task { await loadContacts() }` runs on
+// the background cooperative pool and sets @Published properties OFF the main thread. On
+// macOS 15.x SwiftUI that deadlocks the app at launch (background thread inside the SwiftUI
+// update graph vs main thread building the menu bar — seen in the field, frozen at 27GB as
+// camera frames piled up behind the dead main thread). The nonisolated statics/helpers below
+// exist precisely so the detached work can stay off-main while published state stays on it.
+@MainActor
 final class DateCompareLoader: ObservableObject {
     @Published var contacts:        [WAContact]           = []
     @Published var selectedContact: String?               = nil
@@ -304,6 +311,7 @@ struct BrowseView: View {
                             .font(.system(size: 11)).foregroundColor(.secondary)
                         TextField("Search clients", text: $contactSearch)
                             .textFieldStyle(.plain)
+                            .noWritingTools()   // field-crash on macOS 27.2 — see Brand.noWritingTools
                             .frame(width: 120)
                             .focused($searchFocused)
                             // Debounce filtering so a burst of typing doesn't re-render the photo

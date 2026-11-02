@@ -26,21 +26,25 @@ final class WhatsAppMediaLoader: ObservableObject {
 
     /// The active WhatsApp group container. The consumer app and WhatsApp Business use
     /// different containers (`WhatsApp.shared` vs `WhatsAppSMB.shared`); a coach who switches
-    /// account types may end up with both on disk, so pick whichever ChatStorage.sqlite was
-    /// written most recently — that's the one the live app is using.
-    nonisolated static let containerBase: String = {
+    /// account types may end up with both on disk — including an EMPTY leftover one, which a
+    /// pure file-date heuristic can wrongly pick (the live DB's writes land in `-wal`, so its
+    /// main .sqlite can look older than a dead install's). `queryContacts()` therefore probes
+    /// every candidate for actual rows and locks `containerBase` to the one with data.
+    nonisolated static let candidateBases: [String] = {
         let root = ("~/Library/Group Containers" as NSString).expandingTildeInPath
-        let candidates = ["group.net.whatsapp.WhatsApp.shared", "group.net.whatsapp.WhatsAppSMB.shared"]
+        return ["group.net.whatsapp.WhatsApp.shared", "group.net.whatsapp.WhatsAppSMB.shared"]
             .map { "\(root)/\($0)" }
-        let freshest = candidates
-            .compactMap { base -> (String, Date)? in
-                let attrs = try? FileManager.default.attributesOfItem(atPath: "\(base)/ChatStorage.sqlite")
-                guard let mod = attrs?[.modificationDate] as? Date else { return nil }
-                return (base, mod)
-            }
-            .max { $0.1 < $1.1 }?.0
-        return freshest ?? candidates[0]
     }()
+
+    /// Last write across the DB and its WAL sidecar — the honest "is this container live" signal.
+    nonisolated static func lastWrite(_ base: String) -> Date {
+        ["ChatStorage.sqlite", "ChatStorage.sqlite-wal"]
+            .compactMap { (try? FileManager.default.attributesOfItem(atPath: "\(base)/\($0)"))?[.modificationDate] as? Date }
+            .max() ?? .distantPast
+    }
+
+    nonisolated(unsafe) static var containerBase: String =
+        candidateBases.max { lastWrite($0) < lastWrite($1) } ?? candidateBases[0]
 
     nonisolated static var dbPath: String { "\(containerBase)/ChatStorage.sqlite" }
     nonisolated static var mediaBase: String { "\(containerBase)/Message" }
@@ -93,7 +97,40 @@ final class WhatsAppMediaLoader: ObservableObject {
 
     // MARK: SQLite queries
 
+    /// Probe every WhatsApp container on this Mac and use the freshest one that actually has
+    /// client rows — an empty leftover install (e.g. consumer WhatsApp beside WhatsApp Business)
+    /// can therefore never shadow the live app's data. Returns nil only when NO container could
+    /// be read at all (missing or blocked by Full Disk Access) → the "WhatsApp not found" state.
+    nonisolated(unsafe) private static var lastDiag = ""
     nonisolated static func queryContacts() -> [WAContact]? {
+        var readable = false
+        var best: (base: String, rows: [WAContact])? = nil
+        var diag: [String] = []
+        for base in candidateBases.sorted(by: { lastWrite($0) > lastWrite($1) }) {
+            let name = base.hasSuffix("SMB.shared") ? "business" : "consumer"
+            guard let rows = queryContacts(at: "\(base)/ChatStorage.sqlite") else {
+                let exists = FileManager.default.fileExists(atPath: "\(base)/ChatStorage.sqlite")
+                diag.append("\(name)=\(exists ? "unreadable" : "absent")")
+                continue
+            }
+            readable = true
+            diag.append("\(name)=\(rows.count) clients")
+            if best == nil, !rows.isEmpty { best = (base, rows) }   // freshest-with-data wins
+        }
+        // Log the scan result, but only when it's a problem state or it changed — not every refresh.
+        let summary = "whatsapp scan: \(diag.joined(separator: ", ")) → using \((best?.base ?? containerBase).hasSuffix("SMB.shared") ? "business" : "consumer")"
+        if summary != lastDiag, best == nil || !readable {
+            lastDiag = summary
+            RecordingSession.appendErrorLog(summary)
+        }
+        if let best {
+            containerBase = best.base      // photos + thumbnails must resolve from the same container
+            return best.rows
+        }
+        return readable ? [] : nil
+    }
+
+    nonisolated static func queryContacts(at dbPath: String) -> [WAContact]? {
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_close(db) }
@@ -234,6 +271,11 @@ struct WhatsAppMediaBrowser: View {
                 ProgressView().scaleEffect(0.7)
             } else if loader.unavailable {
                 Label("WhatsApp not found", systemImage: "message.fill")
+                    .foregroundColor(.secondary).font(.caption)
+            } else if loader.contacts.isEmpty {
+                // DB readable but zero qualifying rows — tell the coach what "qualifying" means
+                // instead of showing a silently empty picker.
+                Label("no clients with received photos found in whatsapp yet", systemImage: "message.fill")
                     .foregroundColor(.secondary).font(.caption)
             } else {
                 Picker("Contact", selection: $selectedContact) {

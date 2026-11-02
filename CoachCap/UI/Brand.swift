@@ -57,6 +57,21 @@ extension View {
             .tint(Brand.accent)
             .foregroundStyle(Brand.text)
             .preferredColorScheme(.dark)
+            .noWritingTools()
+    }
+
+    /// Opt every text field out of Apple Intelligence Writing Tools. On macOS 27.2 the
+    /// writing-tools insertion cursor (`NSTextView setShowIntelligenceMode:`) throws an
+    /// NSException on a background cooperative thread when a field inside a transient
+    /// container (e.g. the client-picker search) is torn down — SIGABRT, whole app dies
+    /// (seen in the field, CoachCam 1.9.4/72 on macOS 27.2). We never want Writing Tools
+    /// in these fields anyway, and disabling them skips that code path entirely.
+    @ViewBuilder func noWritingTools() -> some View {
+        if #available(macOS 15.0, *) {
+            self.writingToolsBehavior(.disabled)
+        } else {
+            self
+        }
     }
 
     /// Translucent rounded "pill" surface used for inputs and dropdowns.

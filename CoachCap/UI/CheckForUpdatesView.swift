@@ -7,7 +7,11 @@ final class CheckForUpdatesViewModel: ObservableObject {
     @Published var canCheckForUpdates = false
 
     init(updater: SPUUpdater) {
+        // Sparkle fires this KVO publisher from its own background queues; hop to main
+        // before touching @Published, or SwiftUI's update graph gets entered off-main
+        // (same deadlock class as DateCompareLoader — see that file's @MainActor note).
         updater.publisher(for: \.canCheckForUpdates)
+            .receive(on: DispatchQueue.main)
             .assign(to: &$canCheckForUpdates)
     }
 }

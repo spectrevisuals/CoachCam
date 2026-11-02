@@ -1,5 +1,5 @@
 #!/bin/bash
-# Finish the v1.9.3 build-43 TEST DMG (pose-edit controls redesign).
+# Finish the v1.9.4 build-74 TEST DMG (launch-deadlock fix for macOS 15 + prior 27.2/WhatsApp fixes).
 # The app is already archived + exported + Developer-ID signed at build/export/CoachCam.app.
 # This script only does the steps the Claude sandbox can't (needs Full Disk Access):
 #   package DMG -> notarize -> staple -> validate.
@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP="build/export/CoachCam.app"
-DMG="$HOME/Downloads/CoachCam-v1.9.4-test9.dmg"
+DMG="$HOME/Downloads/CoachCam-v1.9.4-test11.dmg"
 
 [ -d "$APP" ] || { echo "✗ $APP missing — re-run the export first"; exit 1; }
 
