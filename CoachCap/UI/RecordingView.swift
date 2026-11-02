@@ -337,6 +337,7 @@ struct RecordingView: View {
                         .buttonStyle(OutlineButtonStyle())
                         .help("Fluffed a bit? Cut sections out and save an edited copy — the original is kept.")
                         TranscriptCopyButton(url: url)
+                            .fixedSize()   // never the compressed one when the row is tight
                     }
                     Text("drag the highlighted video from finder into your whatsapp chat")
                         .font(Brand.font(11))
@@ -367,7 +368,7 @@ struct RecordingView: View {
                 }
             }
             .padding(16)
-            .frame(width: 430)
+            .frame(width: 474)   // widened for the transcript button — at 430 the row clipped it
             .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Brand.rPanel, style: .continuous).stroke(Brand.border, lineWidth: 1))
