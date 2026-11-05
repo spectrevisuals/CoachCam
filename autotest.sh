@@ -38,11 +38,17 @@ run_scenario() {
   local log_start; log_start=$(wc -l < "$LOG" 2>/dev/null || echo 0)
 
   echo "── $sc ──"
-  "$APP" -autotest "$sc" -autotestOut "$verdict" "${extra[@]}" >/dev/null 2>&1 &
-  local pid=$!
-  # Hard cap 3 min per scenario.
-  for _ in $(seq 1 180); do kill -0 $pid 2>/dev/null || break; sleep 1; done
-  kill -9 $pid 2>/dev/null && { echo "  ✗ app hung — killed"; return 1; }
+  # Launch via `open` so the app runs under ITS OWN TCC identity (launchd parent). Exec'ing
+  # the binary directly makes macOS attribute screen capture to the invoking shell's
+  # responsible process (Terminal/IDE), which fails with "user declined TCCs" unless THAT
+  # app has Screen Recording — so the harness only worked from some terminals.
+  # ${extra[@]+...} guard: macOS's bash 3.2 treats an EMPTY array as unbound under set -u,
+  # which silently killed the no-extra-args scenarios (baseline, pause-resume).
+  open -n -a "/Applications/CoachCam.app" --args -autotest "$sc" -autotestOut "$verdict" ${extra[@]+"${extra[@]}"}
+  sleep 3   # let it register with launchd before we start polling
+  # Hard cap 3 min per scenario: the driver quits the app when the scenario ends.
+  for _ in $(seq 1 180); do pgrep -x CoachCam >/dev/null || break; sleep 1; done
+  pgrep -x CoachCam >/dev/null && { pkill -9 -x CoachCam; echo "  ✗ app hung — killed"; return 1; }
 
   [ -f "$verdict" ] || { echo "  ✗ no verdict written (driver never ran?)"; return 1; }
   local saved; saved=$(python3 -c "import json;print(json.load(open('$verdict')).get('savedPath') or '')")
@@ -52,8 +58,15 @@ run_scenario() {
   local vd ad; vd=$(probe "$saved" v:0); ad=$(probe "$saved" a:0)
   [ -n "$vd" ] || { echo "  ✗ no video track in $saved"; return 1; }
   [ -n "$ad" ] || { echo "  ✗ no audio track in $saved"; return 1; }
-  python3 -c "import sys;v,a=float('$vd'),float('$ad');sys.exit(0 if abs(v-a)<0.8 else 1)" \
-    || { echo "  ✗ A/V duration mismatch (video=$vd audio=$ad) — the audio bug's signature"; return 1; }
+  # screen-stall salvage KEEPS audio past the dead video on purpose (the coach's voice is the
+  # valuable part), so audio>video there is correct behaviour, not the audio bug.
+  if [ "$sc" = "screen-stall" ]; then
+    python3 -c "import sys;v,a=float('$vd'),float('$ad');sys.exit(0 if a>=v-0.8 else 1)" \
+      || { echo "  ✗ salvaged audio shorter than video (video=$vd audio=$ad)"; return 1; }
+  else
+    python3 -c "import sys;v,a=float('$vd'),float('$ad');sys.exit(0 if abs(v-a)<0.8 else 1)" \
+      || { echo "  ✗ A/V duration mismatch (video=$vd audio=$ad) — the audio bug's signature"; return 1; }
+  fi
 
   # Scenario-specific duration + watchdog expectations.
   local newlog; newlog=$(tail -n +"$((log_start + 1))" "$LOG" 2>/dev/null)
@@ -75,6 +88,9 @@ run_scenario() {
   local fin; fin=$(grep "finalize status" <<<"$newlog" | head -1)
   if [ -n "$fin" ]; then
     grep -qE "dropMono=0" <<<"$fin" || { echo "  ✗ mic buffers dropped: $fin"; return 1; }
+    # mic-stall mutilates the mic feed itself, so effHz over that track is meaningless there —
+    # the scenario's real assertions (watchdog fired, partial saved) are checked above/below.
+    [ "$sc" = "mic-stall" ] || \
     python3 - "$fin" <<'PY' || { echo "  ✗ effHz vs audioHz out of tolerance: $fin"; return 1; }
 import re, sys
 fin = sys.argv[1]

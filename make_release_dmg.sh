@@ -1,16 +1,16 @@
 #!/bin/bash
-# v1.9.4 RELEASE DMG — package + notarize + staple the already-exported, signed app.
+# v1.9.5 RELEASE DMG — package + notarize + staple the already-exported, signed app.
 # (Claude's sandbox can't run hdiutil/notarytool — run this yourself, then hand back.)
 #   bash make_release_dmg.sh
 set -e
 cd "$(dirname "$0")"
 
 APP="build/export/CoachCam.app"
-DMG="CoachCam-v1.9.4.dmg"
+DMG="CoachCam-v1.9.5.dmg"
 
 [ -d "$APP" ] || { echo "✗ $APP missing — re-run the export first"; exit 1; }
 BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")
-[ "$BUILD" = "72" ] || { echo "✗ exported app is build $BUILD, expected 72"; exit 1; }
+[ "$BUILD" = "78" ] || { echo "✗ exported app is build $BUILD, expected 78"; exit 1; }
 
 echo "→ Packaging $DMG…"
 rm -rf build/dmg-root && mkdir -p build/dmg-root
@@ -28,6 +28,6 @@ xcrun stapler staple "$DMG"
 xcrun stapler validate "$DMG"
 
 echo ""
-echo "✓ $DMG ready (v1.9.4 build 72, notarized + stapled)"
+echo "✓ $DMG ready (v1.9.5 build 78, notarized + stapled)"
 echo "  Now tell Claude it's done — it will sign for Sparkle, update the appcast,"
 echo "  publish the GitHub release, and push."
