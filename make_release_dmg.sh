@@ -10,7 +10,7 @@ DMG="CoachCam-v1.9.5.dmg"
 
 [ -d "$APP" ] || { echo "✗ $APP missing — re-run the export first"; exit 1; }
 BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")
-[ "$BUILD" = "79" ] || { echo "✗ exported app is build $BUILD, expected 79"; exit 1; }
+[ "$BUILD" = "80" ] || { echo "✗ exported app is build $BUILD, expected 80"; exit 1; }
 
 echo "→ Packaging $DMG…"
 rm -rf build/dmg-root && mkdir -p build/dmg-root
@@ -28,6 +28,6 @@ xcrun stapler staple "$DMG"
 xcrun stapler validate "$DMG"
 
 echo ""
-echo "✓ $DMG ready (v1.9.5 build 79, notarized + stapled)"
+echo "✓ $DMG ready (v1.9.5 build 80, notarized + stapled)"
 echo "  Now tell Claude it's done — it will sign for Sparkle, update the appcast,"
 echo "  publish the GitHub release, and push."

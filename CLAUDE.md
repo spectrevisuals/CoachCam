@@ -105,6 +105,7 @@ Usage:
 - [x] Amplitude analytics (`Models/Analytics.swift`) — feature-usage events only, no client data; DISABLED until the API key is pasted into `Analytics.apiKey`; auto-disabled during autotest runs.
 - [x] Copy transcript (v1.9.5): "copy transcript" in the trim editor + saved banner — renders the on-device word-timestamped transcription as plain text ([m:ss] paragraph markers) onto the clipboard, for pasting a check-in into notes or an AI summariser. Same cache as find-in-recording.
 - [x] "computer sound" toggle (v1.9.5): recorder-bar segItem — OFF records mic-only (no system-audio track created; `RecordingConfig.recordSystemAudio` → `capturesAudio` + writer input skipped), so a coach can talk over a client's loud gym video without the music reaching the check-in. Default ON, persisted.
+- [x] Auto weekly transcripts (v1.9.5): opt-in ⚙ toggle — after each save, `VideoTranscriber.autoExport` transcribes on-device and appends a section to `WC <Monday> transcripts.txt` in the week's folder (deduped on filename, lock-serialised), mirroring the doc to the backup folder. Lets coaches point Claude/AI at a week of check-ins (the "Loom→AI" ask) with coach-owned storage.
 - [ ] Progress indicator during export compression
 
 ## Adding a New Feature

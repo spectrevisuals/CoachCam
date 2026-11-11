@@ -32,6 +32,13 @@ final class BrandingStore: ObservableObject {
     /// Absolute path of the coach's backup folder ("" = backups off). Pointing this at an
     /// iCloud Drive / Google Drive / Dropbox folder gives Loom-style auto-upload with the
     /// coach's own storage and retention.
+    /// Auto-save a plain-text transcript (.txt) beside every finished recording (and into the
+    /// backup folder, if set). Transcription is on-device as always; opt-in because it adds
+    /// ~15–40s of background CPU per recording. Lets a coach point Claude/AI at a folder of
+    /// their check-in transcripts — the "Loom → AI" workflow, with coach-owned storage.
+    @Published var autoSaveTranscripts: Bool {
+        didSet { UserDefaults.standard.set(autoSaveTranscripts, forKey: Self.kAutoTranscripts) }
+    }
     @Published var backupFolderPath: String {
         didSet { UserDefaults.standard.set(backupFolderPath, forKey: Self.kBackupPath) }
     }
@@ -43,6 +50,7 @@ final class BrandingStore: ObservableObject {
     private static let kRing        = "brandRingHex"
     private static let kShowOnVideo = "brandShowLogoOnRecordings"
     private static let kBackupPath  = "backupFolderPath"
+    private static let kAutoTranscripts = "autoSaveTranscripts"
 
     private static var logoFileURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -57,6 +65,7 @@ final class BrandingStore: ObservableObject {
         ringHex      = UserDefaults.standard.string(forKey: Self.kRing) ?? ""
         showLogoOnRecordings = UserDefaults.standard.object(forKey: Self.kShowOnVideo) as? Bool ?? true
         backupFolderPath = UserDefaults.standard.string(forKey: Self.kBackupPath) ?? ""
+        autoSaveTranscripts = UserDefaults.standard.object(forKey: Self.kAutoTranscripts) as? Bool ?? false
         logoImage = NSImage(contentsOf: Self.logoFileURL)
     }
 

@@ -125,6 +125,58 @@ enum VideoTranscriber {
 
     /// Case/punctuation-insensitive phrase search. Each query token must match the word at
     /// that position (equal, or the word starts with it — so "record" finds "recording").
+    /// Auto-export (the "save a transcript file with every recording" setting): transcribe
+    /// on-device and write `<recording name>.txt` beside the clip, plus a copy into the
+    /// backup folder when one is set — so a coach can point Claude/an AI at a folder of
+    /// check-in transcripts (coach-owned storage; nothing ever uploaded by us).
+    /// Fire-and-forget on a background task: failures log to the error file and never
+    /// surface in the UI or touch the save path.
+    /// Error sink — the app points this at RecordingSession.appendErrorLog at launch.
+    /// A plain var (not a direct call) keeps this file free of app-target dependencies,
+    /// since the unit-test target compiles it standalone for the search tests.
+    nonisolated(unsafe) static var log: @Sendable (String) -> Void = { NSLog("%@", $0) }
+
+    static func autoExport(for url: URL, backupFolder: String) {
+        Task.detached(priority: .utility) {
+            do {
+                let words = try await transcribe(url: url) { _ in }
+                let text = plainText(words)
+                guard !text.isEmpty else { return }
+                appendToWeeklyDoc(text, for: url, backupFolder: backupFolder)
+            } catch {
+                Self.log("transcript auto-save failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// One rolling document per weekly recordings folder — "WC <Monday> transcripts.txt" —
+    /// so by the end of the week every check-in's transcript is in a single file the coach
+    /// can hand to Claude/an AI. Each recording appends one section (deduped on filename, so
+    /// a re-save never doubles up); the whole doc is re-mirrored into the backup folder on
+    /// every update. Lock-serialised: two transcriptions finishing together must not
+    /// interleave their writes.
+    private static let weeklyDocLock = NSLock()
+    nonisolated private static func appendToWeeklyDoc(_ text: String, for url: URL, backupFolder: String) {
+        weeklyDocLock.lock(); defer { weeklyDocLock.unlock() }
+        let folder = url.deletingLastPathComponent()               // the "WC YYYY-MM-DD" folder
+        let doc = folder.appendingPathComponent("\(folder.lastPathComponent) transcripts.txt")
+        let marker = "════ \(url.lastPathComponent)"
+        var contents = (try? String(contentsOf: doc, encoding: .utf8)) ?? ""
+        guard !contents.contains(marker) else { return }           // already in the doc
+        let df = DateFormatter(); df.dateFormat = "d MMM yyyy, HH:mm"
+        contents += (contents.isEmpty ? "" : "\n\n")
+            + "\(marker) · \(df.string(from: Date())) ════\n\n" + text + "\n"
+        do {
+            try contents.write(to: doc, atomically: true, encoding: .utf8)
+            if !backupFolder.isEmpty {
+                let dest = URL(fileURLWithPath: backupFolder).appendingPathComponent(doc.lastPathComponent)
+                try? contents.write(to: dest, atomically: true, encoding: .utf8)
+            }
+        } catch {
+            Self.log("transcript weekly doc write failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Render a transcript as readable plain text for copy/paste (e.g. into an AI summariser).
     /// Words flow as prose; a speech gap over 2s starts a new paragraph, each opening with a
     /// [m:ss] marker so the coach (or the AI) can still reference moments in the clip.

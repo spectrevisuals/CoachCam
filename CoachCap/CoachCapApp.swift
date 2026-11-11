@@ -15,6 +15,9 @@ struct CoachCapApp: App {
         // so corruptions surface even when a coach doesn't mention them. Filenames (which hold
         // client names) are never sent — see DiagnosticsReporter.
         DiagnosticsReporter.scanRecordingsFolder()
+        // Wire the transcriber's error sink to the shared error log (it can't import
+        // RecordingSession directly — the unit-test target compiles it standalone).
+        VideoTranscriber.log = { RecordingSession.appendErrorLog($0) }
         Task { @MainActor in Analytics.setup() }
     }
 

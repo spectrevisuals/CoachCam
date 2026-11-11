@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.9.5</string>
 	<key>CFBundleVersion</key>
-	<string>79</string>
+	<string>80</string>
 	<key>NSCameraUsageDescription</key>
 	<string>CoachCap uses your camera to record a face-cam overlay on your screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>

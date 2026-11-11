@@ -109,6 +109,13 @@ struct RecordingView: View {
                 Analytics.track("backup_finished", ["ok": failure == nil])
             }
         }
+        // Opt-in transcript auto-save — strictly after finalize, fire-and-forget, so a coach
+        // can point Claude/an AI at a folder of their check-in transcripts.
+        .onChange(of: appState.lastSavedURL) { _, url in
+            guard let url, BrandingStore.shared.autoSaveTranscripts else { return }
+            Analytics.track("transcript_autosaved")
+            VideoTranscriber.autoExport(for: url, backupFolder: BrandingStore.shared.backupFolderPath)
+        }
         // Trim editor for the last saved recording. On save, the EDITED copy becomes the
         // banner's file (lastSavedURL), so send-to-WhatsApp / backup / link all target it.
         .sheet(isPresented: $showTrimEditor) {

@@ -76,6 +76,20 @@ struct SettingsSheet: View {
             Text("using dropbox? turn on *selective sync* in its settings so it doesn't download your whole account to this Mac.")
                 .font(Brand.font(11)).foregroundStyle(Brand.muted)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Divider().overlay(Brand.border)
+
+            Toggle(isOn: $branding.autoSaveTranscripts) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("save transcripts automatically")
+                        .font(Brand.font(13, .semibold)).foregroundStyle(Brand.text)
+                    Text("after each check-in, its transcript is added to one weekly document (**WC … transcripts.txt**) next to your recordings — and in your backup folder, so you can point claude or any AI at your week's check-ins. transcribed on this mac; audio never leaves it.")
+                        .font(Brand.font(11)).foregroundStyle(Brand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(Brand.accent)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
