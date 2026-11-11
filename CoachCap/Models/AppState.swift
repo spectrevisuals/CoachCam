@@ -50,6 +50,12 @@ final class AppState: ObservableObject {
     //  • Before/after screen: defaults OFF — you're recording the CoachCam window itself
     //    (explaining the photos), so minimising would hide the very thing being shown.
     // hideMainWindowForRecording() picks the right one based on the active screen.
+    /// "record computer sound" — whether the Mac's own audio goes into the recording.
+    /// OFF lets a coach play a client's (loud) check-in video while recording and keep only
+    /// their own voice in the output. Default ON (the long-standing behaviour).
+    @Published var recordComputerSound: Bool = UserDefaults.standard.object(forKey: "recordComputerSound") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(recordComputerSound, forKey: "recordComputerSound") }
+    }
     @Published var hideWindowWhileRecording: Bool = UserDefaults.standard.object(forKey: "hideWindowWhileRecording") as? Bool ?? true {
         didSet { UserDefaults.standard.set(hideWindowWhileRecording, forKey: "hideWindowWhileRecording") }
     }

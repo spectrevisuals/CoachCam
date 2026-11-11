@@ -447,7 +447,7 @@ final class RecordingSession: NSObject, ObservableObject {
         cfg.width  = Int(config.videoSize.width)
         cfg.height = Int(config.videoSize.height)
         cfg.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(config.frameRate))
-        cfg.capturesAudio = true
+        cfg.capturesAudio = config.recordSystemAudio   // OFF = mic-only recording ("computer sound" toggle)
         cfg.sampleRate    = 44100
         cfg.channelCount  = 2
         cfg.pixelFormat   = kCVPixelFormatType_32BGRA
@@ -866,13 +866,18 @@ final class RecordingSession: NSObject, ObservableObject {
             AVNumberOfChannelsKey: 2,
             AVEncoderBitRateKey:   RecordingConfig.audioBitrate,
         ]
-        let sa = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
-        sa.expectsMediaDataInRealTime = true
+        // With "computer sound" off, no system-audio input is created AT ALL (not an empty
+        // track): SCStream delivers no audio (capturesAudio=false) and appendSys no-ops on the
+        // nil input, so the file is video + a single mic track — WhatsApp plays it exactly as
+        // before (it uses the first audio track).
+        let sa: AVAssetWriterInput? = config.recordSystemAudio
+            ? AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings) : nil
+        sa?.expectsMediaDataInRealTime = true
         let ma = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
         ma.expectsMediaDataInRealTime = true
 
         if w.canAdd(vi) { w.add(vi) }
-        if w.canAdd(sa) { w.add(sa) }
+        if let sa, w.canAdd(sa) { w.add(sa) }
         if w.canAdd(ma) { w.add(ma) }
 
         writer = w; vidInput = vi; sysAudInput = sa; micAudInput = ma; adaptor = adp

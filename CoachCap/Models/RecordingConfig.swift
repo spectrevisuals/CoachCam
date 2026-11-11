@@ -8,6 +8,10 @@ struct RecordingConfig {
     var frameRate: Int = 30
     var pipNormalizedRect: CGRect
     var selectedMicID: String?
+    /// Capture the Mac's own audio (whatever's playing — a client's check-in video, music)
+    /// into the recording. OFF = mic-only: no system-audio track is created at all, so a coach
+    /// reviewing a loud gym video can talk over it without the music landing in the check-in.
+    var recordSystemAudio: Bool = true
     var displayID: CGDirectDisplayID?   // which monitor to capture; nil = primary
     var sourceRect: CGRect? = nil       // custom-area crop (display points, top-left origin); nil = whole display
     /// Coach's logo to burn into the top-right of every frame (nil = none). Snapshotted at

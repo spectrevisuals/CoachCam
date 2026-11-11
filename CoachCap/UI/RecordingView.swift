@@ -590,6 +590,10 @@ struct RecordingView: View {
                 if !session.isRunning { appState.hideWindowWhileRecording.toggle() }
             }
             .help("Hide the CoachCam window when recording starts — handy for talking over Google Sheets or Photos. Pair it with float cam so you can still stop.")
+            segItem("computer sound", active: appState.recordComputerSound, icon: "speaker.wave.2") {
+                if !session.isRunning { appState.recordComputerSound.toggle() }
+            }
+            .help("Record the sound your Mac is playing (a client's video, music) into the check-in. Turn it OFF to keep just your voice — e.g. when reviewing a client's video filmed in a loud gym. The video still plays out loud for you either way.")
         }
         .padding(3)
         .frame(height: 40)
@@ -743,12 +747,14 @@ struct RecordingView: View {
             videoSize: videoSize,
             pipNormalizedRect: appState.pipRect,
             selectedMicID: appState.selectedMicID,
+            recordSystemAudio: appState.recordComputerSound,
             displayID: appState.webcamOnlyMode ? nil : (usingCustomArea ? appState.customAreaDisplayID : chosenDisplay?.id),
             sourceRect: usingCustomArea ? appState.customArea : nil,
             brandLogoCG: BrandingStore.shared.videoLogoCG()
         )
         Analytics.track("recording_started", [
             "mode": appState.webcamOnlyMode ? "webcam_only" : (usingCustomArea ? "custom_area" : "screen"),
+            "computer_sound": appState.recordComputerSound,
             "float_cam": floatingPanel != nil,
         ])
         Task {
