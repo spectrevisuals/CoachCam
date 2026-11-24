@@ -67,7 +67,17 @@ final class CameraManager: NSObject, ObservableObject {
         for name in [AVCaptureDevice.wasConnectedNotification, AVCaptureDevice.wasDisconnectedNotification] {
             deviceObservers.append(NotificationCenter.default.addObserver(
                 forName: name, object: nil, queue: .main
-            ) { [weak self] _ in
+            ) { [weak self] note in
+                // Telemetry: a camera or microphone was plugged in or removed. Media type and
+                // transport class only (built-in / USB / Bluetooth / …) — never its name or id.
+                // `wasInUse` is reported by the recorder's own observer, which knows. Skipped
+                // entirely (the device is not even read) when telemetry is off.
+                if Telemetry.isEnabled, let device = note.object as? AVCaptureDevice {
+                    Telemetry.noteDeviceEvent(connected: note.name == AVCaptureDevice.wasConnectedNotification,
+                                              media: device.hasMediaType(.video) ? .video : .audio,
+                                              transport: Telemetry.Transport(device),
+                                              wasInUse: false)
+                }
                 Task { @MainActor in self?.enumerateDevices() }
             })
         }

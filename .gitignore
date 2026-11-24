@@ -1,3 +1,21 @@
 
 tools/
 .swiftpm/
+
+# --- Secrets (this repository is public) ---
+Config/Secrets.local.xcconfig
+*.local.xcconfig
+.sentryclirc
+sentry.properties
+.env*
+
+# --- Build output ---
+build/
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+DerivedData/
+
+# --- Local editor / OS files ---
+xcuserdata/
+.DS_Store

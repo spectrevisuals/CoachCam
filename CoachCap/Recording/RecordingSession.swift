@@ -141,6 +141,11 @@ final class RecordingSession: NSObject, ObservableObject {
         }
         if shouldLog {
             NSLog("ERROR: AVAssetWriter failed mid-recording: \(String(describing: w.error))")
+            // Telemetry: once per recording (the latch above), with captureLock already released.
+            // Keeps only the error's domain and code; returns at once (the SDK work is queued).
+            Telemetry.captureFailure("writer failed mid-recording", stage: .capture, error: w.error,
+                                     Telemetry.writerStatusFields(rawValue: w.status.rawValue)
+                                        .merging(telemetrySampleCounts()))
             // Stop and alert NOW, at the moment of failure — don't let the coach keep filming
             // against a dead writer and only discover at the end that little was captured.
             Task { @MainActor [weak self] in await self?.endUnexpectedly() }
@@ -192,6 +197,12 @@ final class RecordingSession: NSObject, ObservableObject {
             let which: String? = (id != nil && id == micDeviceID) ? "microphone"
                                : (id != nil && id == camDeviceID) ? "camera" : nil
             guard let which else { return }
+            // Telemetry: the device that dropped was the one in use. Media type and transport
+            // class only — never its name or id. Skipped entirely when telemetry is off.
+            if Telemetry.isEnabled, let device = note.object as? AVCaptureDevice {
+                Telemetry.noteDeviceEvent(connected: false, media: which == "camera" ? .video : .audio,
+                                          transport: Telemetry.Transport(device), wasInUse: true)
+            }
             Task { @MainActor [weak self] in self?.captureInterrupted("Your \(which) disconnected.") }
         })
 
@@ -202,6 +213,13 @@ final class RecordingSession: NSObject, ObservableObject {
                 forName: .AVCaptureSessionRuntimeError, object: session, queue: .main
             ) { [weak self] note in
                 let err = note.userInfo?[AVCaptureSessionErrorKey] as? NSError
+                // Telemetry: the error's domain and code only — never its description, which is
+                // system text that can name the device.
+                Telemetry.breadcrumb(.device, "capture session runtime error",
+                                     ["source": .token(label == "microphone" ? "microphone" : "camera"),
+                                      "session_error_domain": .errorDomain(Telemetry.ErrorDomain(err)),
+                                      "session_error_code": .errorCode(err?.code ?? 0)],
+                                     level: .error)
                 Task { @MainActor [weak self] in
                     self?.captureInterrupted("Your \(label) stopped working (\(err?.localizedDescription ?? "device error")).")
                 }
@@ -273,8 +291,7 @@ final class RecordingSession: NSObject, ObservableObject {
         pendingInterruptionReason = reason
         NSLog("WARN: capture interrupted mid-recording — \(reason)")
         Self.appendErrorLog("capture interrupted mid-recording — \(reason)")
-        DiagnosticsReporter.report("🟠 recording interrupted",
-            detail: "\(reason)\nsamples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]")
+        telemetryInterrupted(reason)   // warning event: a reason token + per-track counts, never the sentence
         Task { await endUnexpectedly() }
     }
 
@@ -371,6 +388,9 @@ final class RecordingSession: NSObject, ObservableObject {
 
     func start(config: RecordingConfig, camera: CameraManager, isLicensed: Bool, cameraFloating: Bool = false) async throws {
         guard !isRunning else { return }
+        // Telemetry: a start is in flight from here (app-hang reporting stays paused until the
+        // recorder is idle again). If start() throws, RecordingView's catch puts it back to idle.
+        Telemetry.setRecordingState(.starting)
 
         _camera    = camera
         outputURL  = config.outputURL
@@ -402,6 +422,7 @@ final class RecordingSession: NSObject, ObservableObject {
         // its default (off) unless the user happens to toggle the mirror button, so the saved
         // video wouldn't mirror even though the preview (and the toggle) say it should.
         compositor.mirrorCamera = camera.mirrorEnabled
+        compositor.webcamOnly = config.webcamOnly
         // Coach's logo watermark (nil = none). Snapshotted into the config at start, applied
         // once here — the encode queue only ever reads it. Video-frame overlay only.
         compositor.brandLogo = config.brandLogoCG.map { CIImage(cgImage: $0) }
@@ -428,11 +449,16 @@ final class RecordingSession: NSObject, ObservableObject {
             guard let chosen = content.displays.first(where: { $0.displayID == config.displayID })
                     ?? content.displays.first else {
                 NSLog("ERROR: No displays found")
+                Telemetry.captureFailure("no display to record", stage: .start, error: CCError.noDisplay)
                 throw CCError.noDisplay
             }
             display = chosen
         } catch {
             NSLog("ERROR: SCShareableContent failed - \(error.localizedDescription)")
+            // Telemetry ("no display" was reported where it was thrown, just above).
+            if !(error is CCError) {
+                Telemetry.captureFailure("screen content unavailable", stage: .start, error: error)
+            }
             throw error
         }
         NSLog("DEBUG: Using display id \(display.displayID) (\(display.width)×\(display.height))")
@@ -468,6 +494,7 @@ final class RecordingSession: NSObject, ObservableObject {
             NSLog("DEBUG: Screen output added successfully")
         } catch {
             NSLog("ERROR: Failed to add screen output - \(error)")
+            Telemetry.captureFailure("add screen output failed", stage: .start, error: error)
             throw error
         }
 
@@ -477,6 +504,7 @@ final class RecordingSession: NSObject, ObservableObject {
             NSLog("DEBUG: Audio output added successfully")
         } catch {
             NSLog("ERROR: Failed to add audio output - \(error)")
+            Telemetry.captureFailure("add audio output failed", stage: .start, error: error)
             throw error
         }
 
@@ -496,12 +524,21 @@ final class RecordingSession: NSObject, ObservableObject {
 
         NSLog("DEBUG: Starting AVAssetWriter...")
         writer?.startWriting()
+        // Telemetry reads go AFTER startWriting(): the microphone was told to start just above and
+        // its first buffer opens the writer session, so nothing new may sit between the two.
+        telemetryDevicesSelected(display: display, config: config)   // kinds and sizes only; no names, no ids
         // Bail loudly if the writer never entered .writing — otherwise capture would run
         // against a dead writer and silently produce an unplayable file.
         if let w = writer, w.status != .writing {
             NSLog("ERROR: AVAssetWriter failed to start — status \(w.status.rawValue): \(String(describing: w.error))")
+            Telemetry.captureFailure("writer failed to start", stage: .start, error: w.error,
+                                     Telemetry.writerStatusFields(rawValue: w.status.rawValue))
             throw w.error ?? CCError.writerSetupFailed
         }
+        Telemetry.breadcrumb(.writer, "writer started",
+                             ["output_width": .int(Int(config.videoSize.width)),
+                              "output_height": .int(Int(config.videoSize.height)),
+                              "system_audio_track": .bool(sysAudInput != nil)])
 
         NSLog("DEBUG: Calling sc.startCapture()...")
         do {
@@ -510,6 +547,8 @@ final class RecordingSession: NSObject, ObservableObject {
         } catch {
             let nsError = error as NSError
             NSLog("ERROR: sc.startCapture() failed - Domain: \(nsError.domain), Code: \(nsError.code), Message: \(nsError.localizedDescription)")
+            Telemetry.captureFailure("screen capture failed to start", stage: .start, error: error,
+                                     Telemetry.writerStatusFields(rawValue: writer?.status.rawValue ?? -1))
             throw error
         }
 
@@ -523,6 +562,10 @@ final class RecordingSession: NSObject, ObservableObject {
             reason: "CoachCam recording in progress")
 
         isRunning = true
+        // Telemetry: the recording is running. The path goes only into the local session-state
+        // file (so the next launch can spot a recording that was never finalised); it is never sent.
+        Telemetry.setRecordingState(.recording)
+        SessionMarker.shared.recordingStarted(path: config.outputURL.path)
         isPaused  = false
         lastVideoCount = 0
         lastVideoAdvanceAt = ProcessInfo.processInfo.systemUptime
@@ -540,6 +583,11 @@ final class RecordingSession: NSObject, ObservableObject {
         if !fx.isEmpty {
             NSLog("WARN: recording started with active camera effects: \(fx.joined(separator: ", "))")
             Self.appendErrorLog("recording started with active camera effects: \(fx.joined(separator: ", "))")
+            Telemetry.breadcrumb(.device, "camera effects active",
+                                 ["portrait": .bool(fx.contains("Portrait")),
+                                  "studio_light": .bool(fx.contains("Studio Light")),
+                                  "center_stage": .bool(fx.contains("Center Stage")),
+                                  "reactions": .bool(fx.contains("Reactions"))])
         }
         NSLog("DEBUG: Recording started successfully")
     }
@@ -551,6 +599,7 @@ final class RecordingSession: NSObject, ObservableObject {
         isPaused = true
         let t = CMClockGetTime(CMClockGetHostTimeClock())
         locked { $0.isPaused = true; $0.pauseStart = t }
+        Telemetry.setRecordingState(.paused)   // after the pause has taken effect, lock released
     }
 
     func resume() {
@@ -567,6 +616,7 @@ final class RecordingSession: NSObject, ObservableObject {
             $0.isPaused = false
             $0.pauseStart = nil
         }
+        Telemetry.setRecordingState(.recording)   // after the resume has taken effect, lock released
     }
 
     // MARK: - Free tier timer
@@ -584,6 +634,7 @@ final class RecordingSession: NSObject, ObservableObject {
             // Time's up — auto stop with a clear message. Set the message first so the
             // unexpected-stop handler keeps it (it only fills a blank message).
             if isRunning {
+                Telemetry.breadcrumb(.recording, "interrupted", ["reason": .token("free_tier_cap")])
                 errorMessage = "free recordings are capped at \(cap / 60) minutes — upgrade for unlimited"
                 await endUnexpectedly()
             }
@@ -593,6 +644,11 @@ final class RecordingSession: NSObject, ObservableObject {
     // MARK: - Stop
 
     func stop() async -> URL? {
+        Telemetry.breadcrumb(.recording, "stop requested",
+                             telemetrySampleCounts().merging([
+                                "was_running": .bool(isRunning),
+                                "was_paused": .bool(isPaused),
+                                "finalize_already_begun": .bool(didFinalize)]))
         // User-initiated stop: flip isRunning immediately for snappy UI (the saved/saving
         // state is driven by RecordingView, which already set isRecording=false, so the
         // unexpected-stop handler won't double-fire), then tear down and finalise.
@@ -605,11 +661,22 @@ final class RecordingSession: NSObject, ObservableObject {
     /// file landed on disk. On failure it logs the writer error, removes the broken stub so
     /// it can't masquerade as a real recording, and returns nil so the UI can surface an error.
     private func finalizeWriter() async -> URL? {
+        // Telemetry: a second caller has arrived while the first finalize is still running (no
+        // result and no failure recorded yet) and is about to be handed "nothing saved".
+        if didFinalize, finalizedURL == nil, lastSaveError == nil {
+            Telemetry.captureWarning("finalize requested while already in flight",
+                                     fingerprint: ["finalize-reentered"],
+                                     telemetrySampleCounts().merging(["caller_sees_running": .bool(isRunning)]))
+        }
         // Idempotent: an interrupted stream finalises here, and a follow-up stop() must
         // return the same result instead of re-running finishWriting (which would delete
         // the file we just salvaged).
         if didFinalize { return finalizedURL }
         didFinalize = true
+        // Telemetry: finalize has begun. `telemetryOwnURL` lets the end of this function tell
+        // whether the recorder is still on this recording (a new start() replaces outputURL).
+        Telemetry.setRecordingState(.finalizing)
+        let telemetryOwnURL = outputURL
         // Give the mic outbox a bounded chance to land any buffers the writer was too busy to
         // take during capture — otherwise the tail of the recording would lose them.
         for _ in 0..<100 {
@@ -627,6 +694,17 @@ final class RecordingSession: NSObject, ObservableObject {
             result = await ExportManager.flattenAudioTracks(inputURL: raw)
         }
         finalizedURL = result
+        // Telemetry: finalize has finished — on every outcome (saved, salvaged, failed) and for
+        // every caller (user stop, interruption, writer failure). The local session-state file
+        // forgets THIS recording (named by its path, which is never sent, so a newer recording
+        // that has taken the recorder over is left alone). Back to idle, which resumes app-hang
+        // reporting — skipped only if a new start() has already taken the recorder over.
+        if let finalizedPath = telemetryOwnURL?.path {
+            SessionMarker.shared.recordingFinalized(path: finalizedPath)
+        }
+        if outputURL == telemetryOwnURL {
+            Telemetry.setRecordingState(.idle)
+        }
         return result
     }
 
@@ -635,6 +713,12 @@ final class RecordingSession: NSObject, ObservableObject {
             fail(reason: "The recorder never started.", url: outputURL, error: nil)
             return nil
         }
+        // Telemetry: what the writer looked like going into finishWriting.
+        let statusBeforeFinish = w.status
+        Telemetry.breadcrumb(.writer, "writer finishing",
+                             Telemetry.writerStatusFields(rawValue: statusBeforeFinish.rawValue)
+                                .merging(telemetrySampleCounts())
+                                .merging(["interrupted": .bool(pendingInterruptionReason != nil)]))
 
         // Only finishWriting if still writing; a failed writer can't be finished, but its
         // fragmented file on disk may still hold a playable partial we can salvage.
@@ -664,15 +748,35 @@ final class RecordingSession: NSObject, ObservableObject {
         NSLog("DEBUG: \(diag)")
         Self.appendErrorLog(diag)
 
+        // Telemetry: the same outcome as numbers and tokens. Never `diag` itself (its two error
+        // fields are full NSError dumps, which can hold the output path) and never the URL.
+        let finalizeFields = telemetryFinalizeFields(writerStatus: w.status.rawValue,
+                                                     statusBeforeFinish: statusBeforeFinish.rawValue,
+                                                     fileBytes: telemetryFileBytes(atPath: url.path),
+                                                     spanSys: spanSys, spanMic: spanMic,
+                                                     effSys: effSys, effMic: effMic)
+        Telemetry.breadcrumb(.writer, "writer finished", finalizeFields,
+                             level: w.status == .completed ? .info : .error)
+        if w.status != .completed {
+            Telemetry.captureFailure(statusBeforeFinish == .writing ? "writer failed to finish"
+                                                                    : "writer was not writing at finalize",
+                                     stage: .finalize, error: w.error, finalizeFields)
+        }
+
         // Beta telemetry: if this recording shows ANY audio anomaly — an effective mic rate
         // that disagrees with its declared rate (the audio-speed bug's signature), buffers
         // dropped by the monotonic guard, the rate-correction resampler engaging, or leftover
-        // queued buffers — ping Discord with the raw numbers so a regression on ANY tester's
-        // machine surfaces within a day instead of via a client complaint. The diag string is
-        // counts and rates only; no filenames or client names.
+        // queued buffers — send a warning with the raw numbers so a regression on ANY tester's
+        // machine surfaces within a day instead of via a client complaint. Counts and rates
+        // only: the diag string is NOT sent (its error fields can carry a file path).
         let micRateOff = spanMic > 5 && micAudioHz > 0 && abs(effMic - micAudioHz) / micAudioHz > 0.03
         if micRateOff || micDropMono > 50 || micResampleActive || !micOutbox.isEmpty {
-            DiagnosticsReporter.report("⚠️ audio anomaly at finalize (v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")/\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))", detail: diag)
+            let anomaly: StaticString = micRateOff ? "rate_off" : micDropMono > 50 ? "drop_mono"
+                : micResampleActive ? "resample_active" : "outbox_left"
+            Telemetry.captureWarning("audio anomaly at finalize", fingerprint: ["audio-anomaly", anomaly],
+                                     finalizeFields.merging(["anomaly": .token(anomaly),
+                                                             "mic_rate_off": .bool(micRateOff),
+                                                             "mic_resample_active": .bool(micResampleActive)]))
         }
 
         let interrupted = pendingInterruptionReason
@@ -698,6 +802,9 @@ final class RecordingSession: NSObject, ObservableObject {
             lastSavePartialNote = "Recording stopped — \(reason) Recovered the \(Self.durationString(secs)) that was filmed."
             NSLog("WARN: recording salvaged as partial (\(Self.durationString(secs))) — \(reason)")
             Self.appendErrorLog("salvaged partial (\(Self.durationString(secs))) — \(reason)")
+            Telemetry.breadcrumb(.recording, "salvaged partial",
+                                 ["duration_s": .double(secs), "interrupted": .bool(interrupted != nil)],
+                                 level: .warning)
             return url   // finalizeWriter's remux/flatten turns the fragmented partial into a clean clip
         }
 
@@ -733,8 +840,9 @@ final class RecordingSession: NSObject, ObservableObject {
         lastSaveError = full
         NSLog("ERROR: recording failed to save — \(full) — writer.error=\(String(describing: error))")
         Self.appendErrorLog("save failed — \(full) | writer.error=\(String(describing: error))")
-        DiagnosticsReporter.report("🔴 recording SAVE FAILED",
-            detail: "\(full)\nsamples[video=\(videoSampleCount) sys=\(sysAudioSampleCount) mic=\(micSampleCount)]\nwriter.error=\(String(describing: error))")
+        // Error event: the error's domain and code, a cause token and per-track counts — never
+        // `full`, the URL, or the error dump above.
+        telemetrySaveFailed(hadOutputURL: url != nil, error: error)
 
         // Preserve the partial: rename to .unfinished.mp4 so it doesn't masquerade as a good
         // recording but is still there for recovery/inspection.
@@ -919,10 +1027,14 @@ final class RecordingSession: NSObject, ObservableObject {
 extension RecordingSession: SCStreamDelegate {
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
         NSLog("ERROR: SCStream stopped with error: \(error.localizedDescription)")
+        // Telemetry: the error's domain and code only, read here (once per stream stop).
+        let stopDomain = Telemetry.ErrorDomain(error)
+        let stopCode = (error as NSError).code
         Task { @MainActor [weak self] in
             // Only react to an *unexpected* stop. A normal user stop() already flipped
             // isRunning to false and is finalising itself. endUnexpectedly() salvages what was
             // filmed and surfaces it via RecordingView's unexpected-stop handler.
+            self?.telemetryStreamStopped(errorDomain: stopDomain, errorCode: stopCode)
             await self?.endUnexpectedly()
         }
     }
@@ -968,13 +1080,25 @@ extension RecordingSession: SCStreamOutput {
         // burned-in PiP to avoid a duplicate face cam. Also drop the PiP if the camera has gone
         // stale (no new frame for >1s — e.g. an external cam was unplugged) so we don't burn a
         // frozen face into the video while the watchdog winds down.
+        // Webcam-only records no screen, so the float cam window is NOT in the picture there:
+        // the camera frame is the whole recording and the float cam must never suppress it.
         let camStale = (_camera.map { ProcessInfo.processInfo.systemUptime - $0.lastFrameAt > 1 } ?? true)
-        let camBuf = (floating || camStale) ? nil : _camera?.latestBuffer()
+        let floatCamIsInPicture = floating && !compositor.webcamOnly
+        let camBuf = (floatCamIsInPicture || camStale) ? nil : _camera?.latestBuffer()
         if let out = compositor.composite(screenSample: sample,
                                           cameraBuffer: camBuf,
                                           pipRect: pipRect,
                                           outputSize: outputSize),
            adaptor?.append(out, withPresentationTime: adjPTS) == true {
+            // Telemetry: the first frame written in this recording only — one integer test per
+            // frame, one breadcrumb per recording, no lock held.
+            if videoSampleCount == 0 {
+                Telemetry.breadcrumb(.recording, "first frame received",
+                                     ["after_s": .double(CMTimeGetSeconds(adjPTS)),
+                                      "camera_in_frame": .bool(camBuf != nil),
+                                      "float_cam": .bool(floating),
+                                      "video_was_first_stream": .bool(isFirst)])
+            }
             lastVideoPTS = adjPTS
             videoSampleCount += 1
         }
@@ -1279,5 +1403,186 @@ enum CCError: LocalizedError {
         case .noDisplay:         return "No display found to record."
         case .writerSetupFailed: return "Could not start the recording file. Please try again."
         }
+    }
+}
+
+// MARK: - Telemetry (observation only)
+//
+// Everything below only READS recorder state and hands numbers, booleans and constant tokens to
+// `Telemetry`. Nothing here changes what the recorder does, takes `captureLock`, waits, or
+// writes a file. No URL, path, file name, device or display name, or error text is passed on.
+
+extension RecordingSession {
+
+    /// Per-track counts of what has been written so far. Plain integer reads (each counter is
+    /// written only by its own capture queue), so this may be called from any thread.
+    nonisolated private func telemetrySampleCounts() -> Telemetry.Fields {
+        ["video_frames": .int(videoSampleCount),
+         "sys_audio_buffers": .int(sysAudioSampleCount),
+         "mic_buffers": .int(micSampleCount)]
+    }
+
+    /// Reduces an interruption sentence to two constant tokens: what happened, and to which
+    /// source. The sentence itself is never sent (the runtime-error one embeds system text).
+    /// The sentences are the ones built in `startWatchdog` and `installCaptureObservers`.
+    private static func telemetryInterruptionTokens(_ reason: String) -> (kind: StaticString, source: StaticString) {
+        let source: StaticString
+        if reason.hasPrefix("Your microphone") {
+            source = "microphone"
+        } else if reason.hasPrefix("Your camera") {
+            source = "camera"
+        } else if reason.hasPrefix("CoachCam stopped receiving screen video") {
+            source = "screen"
+        } else {
+            source = "unknown"
+        }
+        let kind: StaticString
+        if reason.hasPrefix("CoachCam stopped receiving screen video") {
+            kind = "watchdog_video"
+        } else if reason.hasSuffix(" stopped sending audio.") {
+            kind = "watchdog_microphone"
+        } else if reason.hasSuffix(" stopped sending video.") {
+            kind = "watchdog_camera"
+        } else if reason.hasSuffix(" disconnected.") {
+            kind = "device_disconnected"
+        } else if reason.contains(" stopped working (") {
+            kind = "session_runtime_error"
+        } else if reason.hasSuffix(" was interrupted.") {
+            kind = "session_interrupted"
+        } else {
+            kind = "other"
+        }
+        return (kind, source)
+    }
+
+    /// "devices selected": which kind of display, camera and microphone this recording uses —
+    /// transport class and whether there is one, never a name or an id. Everything read here is
+    /// a value the objects already hold. That includes two properties of the camera and
+    /// microphone DEVICE objects (`isContinuityCamera`, `transportType`); the microphone's
+    /// capture SESSION, which is starting up on its own queue, is not touched. With telemetry
+    /// off nothing is read at all.
+    private func telemetryDevicesSelected(display: SCDisplay, config: RecordingConfig) {
+        guard Telemetry.isEnabled else { return }
+        let cameraDevice = _camera?.activeCameraDevice
+        Telemetry.noteRecordingSetup(.device, "devices selected", [
+            "display_is_primary": .bool(display.displayID == CGMainDisplayID()),
+            "display_as_requested": .bool(config.displayID == nil || display.displayID == config.displayID),
+            "display_width": .int(display.width),      // points, as ScreenCaptureKit reports them;
+            "display_height": .int(display.height),    // the pixel size is on "recording requested"
+            "camera_selected": .bool(cameraDevice != nil),
+            "camera_transport": .token(Telemetry.transportToken(cameraDevice)),
+            "camera_running": .bool(_camera?.activeSession?.isRunning == true),
+            "mic_selected": .bool(micDevice != nil),
+            "mic_explicit": .bool(config.selectedMicID != nil),
+            "mic_transport": .token(Telemetry.transportToken(micDevice))])
+    }
+
+    /// One warning for the interruption that ends a recording (the caller has already checked
+    /// that it is the first). Carries what kind it was, which source, the per-track counts and
+    /// how long each feed had been quiet — the same numbers the watchdog looks at.
+    private func telemetryInterrupted(_ reason: String) {
+        let (kind, source) = Self.telemetryInterruptionTokens(reason)
+        let now = ProcessInfo.processInfo.systemUptime
+        var fields = telemetrySampleCounts().merging([
+            "reason": .token(kind),
+            "source": .token(source),
+            "was_paused": .bool(isPaused)])
+        if let status = writer?.status.rawValue {
+            fields = fields.merging(Telemetry.writerStatusFields(rawValue: status))
+        }
+        if lastVideoAdvanceAt > 0 { fields.set("video_stalled_s", .double(now - lastVideoAdvanceAt)) }
+        if lastMicSampleAt > 0 { fields.set("mic_silent_s", .double(now - lastMicSampleAt)) }
+        if let camera = _camera, camera.lastFrameAt > 0 {
+            fields.set("camera_silent_s", .double(now - camera.lastFrameAt))
+        }
+        Telemetry.breadcrumb(.recording, "interrupted",
+                             ["reason": .token(kind), "source": .token(source)], level: .warning)
+        Telemetry.captureWarning("recording interrupted",
+                                 fingerprint: ["recording-interrupted", kind, source], fields)
+    }
+
+    /// ScreenCaptureKit reported that the stream stopped. Always leaves a breadcrumb; sends the
+    /// "recording interrupted" warning only when this is what ends a running recording — not
+    /// during a user stop, and not while an earlier interruption is already being wound down.
+    private func telemetryStreamStopped(errorDomain: Telemetry.ErrorDomain, errorCode: Int) {
+        let endsRecording = isRunning && pendingInterruptionReason == nil && watchdogTask != nil
+        let fields: Telemetry.Fields = [
+            "reason": .token("scstream_stopped"),
+            "source": .token("screen"),
+            "stream_error_domain": .errorDomain(errorDomain),
+            "stream_error_code": .errorCode(errorCode),
+            "ends_recording": .bool(endsRecording)]
+        Telemetry.breadcrumb(.recording, "interrupted", fields, level: .warning)
+        guard endsRecording else { return }
+        Telemetry.captureWarning("recording interrupted",
+                                 fingerprint: ["recording-interrupted", "scstream_stopped", "screen"],
+                                 telemetrySampleCounts().merging(fields).merging(["was_paused": .bool(isPaused)]))
+    }
+
+    /// Size of the file the writer produced. Asks the file system directly rather than the
+    /// URL, so the URL's own cached resource values are left exactly as they were. With
+    /// telemetry off the file is not looked at.
+    private func telemetryFileBytes(atPath path: String) -> Int64 {
+        guard Telemetry.isEnabled else { return 0 }
+        return ((try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    /// The finalize outcome as numbers and tokens: writer status, duration, size, per-track
+    /// counts, and the audio-timing figures that the local "finalize status" log line holds.
+    private func telemetryFinalizeFields(writerStatus: Int, statusBeforeFinish: Int, fileBytes: Int64,
+                                         spanSys: Double, spanMic: Double,
+                                         effSys: Double, effMic: Double) -> Telemetry.Fields {
+        let trackEnds = [lastVideoPTS, lastSysEndPTS, lastMicEndPTS]
+            .filter { $0.isNumeric }
+            .map { CMTimeGetSeconds($0) }
+        return Telemetry.writerStatusFields(rawValue: writerStatus)
+            .merging(telemetrySampleCounts())
+            .merging([
+                "status_before_finish": .int(statusBeforeFinish),
+                "finish_attempted": .bool(statusBeforeFinish == AVAssetWriter.Status.writing.rawValue),
+                "interrupted": .bool(pendingInterruptionReason != nil),
+                "duration_s": .double(trackEnds.max() ?? 0),
+                "video_s": .double(lastVideoPTS.isNumeric ? CMTimeGetSeconds(lastVideoPTS) : 0),
+                "size_mb": .double(Double(fileBytes) / 1_000_000),
+                "sys_audio_hz": .double(sysAudioHz),
+                "mic_audio_hz": .double(micAudioHz),
+                "sys_eff_hz": .double(effSys),
+                "mic_eff_hz": .double(effMic),
+                "sys_span_s": .double(spanSys),
+                "mic_span_s": .double(spanMic),
+                "sys_samples": .int(Int(truncatingIfNeeded: sysSampleTotal)),
+                "mic_samples": .int(Int(truncatingIfNeeded: micSampleTotal)),
+                "mic_waited": .int(micQueuedEvents),
+                "mic_outbox_peak": .int(micOutboxPeak),
+                "mic_drop_mono": .int(micDropMono),
+                "mic_spliced": .int(micSpliced),
+                "mic_outbox_left": .int(micOutbox.count)])
+    }
+
+    /// The error event for a recording that could not be saved: a cause token, the error's
+    /// domain and code, the writer status and the per-track counts.
+    private func telemetrySaveFailed(hadOutputURL: Bool, error: Error?) {
+        let cause: StaticString
+        if writer == nil || !hadOutputURL {
+            cause = "recorder_never_started"
+        } else if pendingInterruptionReason != nil {
+            cause = "interrupted"
+        } else if let e = error as NSError?,
+                  isDiskFull(e) || (e.userInfo[NSUnderlyingErrorKey] as? NSError).map(isDiskFull) == true {
+            cause = "disk_full"
+        } else if error != nil {
+            cause = "writer_error"
+        } else {
+            cause = "nothing_usable"
+        }
+        var fields = telemetrySampleCounts().merging(["cause": .token(cause)])
+        if let why = pendingInterruptionReason {
+            let (kind, source) = Self.telemetryInterruptionTokens(why)
+            fields = fields.merging(["reason": .token(kind), "source": .token(source)])
+        }
+        if let status = writer?.status.rawValue {
+            fields = fields.merging(Telemetry.writerStatusFields(rawValue: status))
+        }
+        Telemetry.captureFailure("recording save failed", stage: .save, error: error, fields)
     }
 }

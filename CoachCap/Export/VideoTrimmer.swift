@@ -69,15 +69,21 @@ enum VideoTrimmer {
     static func export(source: URL, cuts: [ClosedRange<Double>], to dest: URL,
                        progress: @escaping @Sendable (Double) -> Void) async throws {
         let asset = AVURLAsset(url: source)
-        let duration = try await asset.load(.duration).seconds
-        let kept = keptRanges(duration: duration, cuts: cuts)
-        guard !kept.isEmpty else { throw TrimError.nothingLeft }
-
         // Build a composition of the kept ranges, video + (single, flattened) audio in sync.
         let comp = AVMutableComposition()
         guard let srcVideo = try await asset.loadTracks(withMediaType: .video).first else {
             throw TrimError.noVideoTrack
         }
+        // Bound everything by the VIDEO track's end, not the asset's. The mic track can run a
+        // few ms past the last video frame (its final buffer lands after capture stops — true
+        // of every mic-first/computer-sound-off recording), and inserting a range beyond the
+        // video track's end puts an empty video segment in the composition, which the encoder
+        // rejects at the tail with a useless -11800/-12905. Found in the field 2026-11-14:
+        // every trim that kept the end of such a clip failed with "export failed".
+        let videoEnd = try await srcVideo.load(.timeRange).end.seconds
+        let duration = min(try await asset.load(.duration).seconds, videoEnd)
+        let kept = keptRanges(duration: duration, cuts: cuts)
+        guard !kept.isEmpty else { throw TrimError.nothingLeft }
         let srcAudio = try await asset.loadTracks(withMediaType: .audio).first
         guard let compVideo = comp.addMutableTrack(withMediaType: .video,
                                                    preferredTrackID: kCMPersistentTrackID_Invalid)
@@ -192,13 +198,20 @@ enum VideoTrimmer {
             group.notify(queue: .global()) { done.resume() }
         }
 
+        // Full NSError detail (domain/code/underlying) in the thrown message — AVFoundation's
+        // localizedDescription alone is a useless "The operation could not be completed".
+        func detail(_ e: Error?, _ fallback: String) -> String {
+            guard let ns = e as NSError? else { return fallback }
+            let under = (ns.userInfo[NSUnderlyingErrorKey] as? NSError).map { " under=\($0.domain)#\($0.code)" } ?? ""
+            return "\(ns.localizedDescription) [\(ns.domain)#\(ns.code)\(under)]"
+        }
         if reader.status == .failed {
             writer.cancelWriting()
-            throw TrimError.exportFailed(reader.error?.localizedDescription ?? "read error")
+            throw TrimError.exportFailed("reading: " + detail(reader.error, "read error"))
         }
         await writer.finishWriting()
         guard writer.status == .completed else {
-            throw TrimError.exportFailed(writer.error?.localizedDescription ?? "write error")
+            throw TrimError.exportFailed("writing: " + detail(writer.error, "write error"))
         }
     }
 }

@@ -42,7 +42,9 @@ enum VideoTranscriber {
 
     private static func cacheURL(for url: URL) -> URL {
         let size = ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int) ?? 0
-        let key = "\(url.deletingPathExtension().lastPathComponent)-\(size)"
+        // "-v2": transcripts cached before the long-recording fix (utterance accumulation)
+        // hold only the last utterance — the version bump forces a clean re-transcribe.
+        let key = "\(url.deletingPathExtension().lastPathComponent)-\(size)-v2"
             .replacingOccurrences(of: "/", with: "_")
         return cacheDir.appendingPathComponent("\(key).json")
     }
@@ -77,10 +79,20 @@ enum VideoTranscriber {
 
         // The recognizer calls back repeatedly (partials) and can surface both a final result
         // AND an error — the flag guards the continuation against double-resume.
+        //
+        // CRITICAL: on-device recognition of long audio arrives as a series of UTTERANCES.
+        // Each utterance completes in a callback whose `speechRecognitionMetadata` is non-nil
+        // (absolute in-file timestamps, settled text), after which `bestTranscription` RESETS
+        // and the next utterance's partials start from scratch (timestamps show 0.0 until that
+        // utterance settles). The `isFinal` callback holds ONLY the last utterance — so the
+        // words must be accumulated at every metadata callback, not read once at the end.
+        // (Verified against a 131 s recording: 7 utterances; keeping only the final result
+        // returned just the last 13 s of speech.)
         final class State: @unchecked Sendable {
             let lock = NSLock()
             var task: SFSpeechRecognitionTask?
             var finished = false
+            var collected: [Word] = []
         }
         let state = State()
 
@@ -90,15 +102,27 @@ enum VideoTranscriber {
                     state.lock.lock(); defer { state.lock.unlock() }
                     guard !state.finished else { return }
                     if let result {
+                        // Progress: utterance-final callbacks carry absolute timestamps;
+                        // mid-utterance partials report 0.0, so keep it monotonic via max().
                         if duration > 0, let last = result.bestTranscription.segments.last {
-                            progress(min(1, last.timestamp / duration))
+                            let reached = max(state.collected.last.map { $0.time + $0.duration } ?? 0,
+                                              last.timestamp)
+                            progress(min(1, reached / duration))
+                        }
+                        let utteranceSettled = result.speechRecognitionMetadata != nil
+                        if utteranceSettled {
+                            state.collected += result.bestTranscription.segments.map {
+                                Word(text: $0.substring, time: $0.timestamp, duration: $0.duration)
+                            }
                         }
                         if result.isFinal {
                             state.finished = true
-                            let ws = result.bestTranscription.segments.map {
-                                Word(text: $0.substring, time: $0.timestamp, duration: $0.duration)
+                            if !utteranceSettled {   // final without metadata: don't drop the tail
+                                state.collected += result.bestTranscription.segments.map {
+                                    Word(text: $0.substring, time: $0.timestamp, duration: $0.duration)
+                                }
                             }
-                            cont.resume(returning: ws)
+                            cont.resume(returning: state.collected)
                         }
                     } else if let error {
                         state.finished = true

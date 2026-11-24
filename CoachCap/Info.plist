@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.9.5</string>
 	<key>CFBundleVersion</key>
-	<string>80</string>
+	<string>84</string>
 	<key>NSCameraUsageDescription</key>
 	<string>CoachCap uses your camera to record a face-cam overlay on your screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -32,5 +32,7 @@
 	<string>https://raw.githubusercontent.com/spectrevisuals/CoachCam/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>rduKIaou/mAjUKF6/eOVw5+kc2grUFBw1kncIoqqRaA=</string>
+	<key>SentryDSN</key>
+	<string>$(SENTRY_DSN)</string>
 </dict>
 </plist>

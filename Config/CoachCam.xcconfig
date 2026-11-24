@@ -1,0 +1,21 @@
+// CoachCam build configuration (tracked; used by both Debug and Release).
+//
+// SENTRY_DSN is the address crash and error reports are sent to. It is deliberately EMPTY
+// here: with an empty value the app never starts the Sentry SDK and behaves exactly as if
+// telemetry did not exist.
+//
+// The real value lives in an untracked file next to this one:
+//     Config/Secrets.local.xcconfig
+// Create it with:
+//     bash Scripts/set_sentry_dsn.sh "<your DSN>"
+// Do not write the DSN in this file, in project.yml or in the Xcode build settings: this
+// repository is public, and a value in the build settings would override this file.
+//
+// xcconfig trap: "//" starts a comment, so a DSN cannot be pasted as-is ("https://..." would
+// be cut down to "https:"). The script writes it as  https:/$()/...  which Xcode expands back
+// to  https://...  when it fills in the SentryDSN key of Info.plist.
+
+SENTRY_DSN =
+
+// Optional include: silently skipped when the file does not exist.
+#include? "Secrets.local.xcconfig"

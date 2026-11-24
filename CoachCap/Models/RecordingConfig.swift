@@ -12,6 +12,9 @@ struct RecordingConfig {
     /// into the recording. OFF = mic-only: no system-audio track is created at all, so a coach
     /// reviewing a loud gym video can talk over it without the music landing in the check-in.
     var recordSystemAudio: Bool = true
+    /// Talking-head mode: compositor draws ONLY the camera (full-frame); the screen capture
+    /// keeps running purely as the frame clock and is never drawn.
+    var webcamOnly: Bool = false
     var displayID: CGDirectDisplayID?   // which monitor to capture; nil = primary
     var sourceRect: CGRect? = nil       // custom-area crop (display points, top-left origin); nil = whole display
     /// Coach's logo to burn into the top-right of every frame (nil = none). Snapshotted at

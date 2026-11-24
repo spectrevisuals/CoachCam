@@ -12,6 +12,11 @@ final class FrameCompositor {
     private var poolSize: CGSize = .zero
 
     var mirrorCamera = false
+    /// Webcam-only (talking-head) mode: the screen capture still runs as the frame clock, but
+    /// ONLY the camera is drawn — full-frame with square corners, on black, never the screen.
+    /// Without this flag the mode silently recorded the primary display with a corner PiP
+    /// (field bug, 2026-11-14).
+    var webcamOnly = false
     /// Coach's logo, burned top-right of every frame. Set ONCE at recording start (from
     /// RecordingConfig, on the same path that sets mirrorCamera) — never mutated while the
     /// encode queue is running. Purely a video-frame overlay: no audio/timing contact.
@@ -44,7 +49,10 @@ final class FrameCompositor {
                                                        y: outputSize.height / srcH))
         }
 
-        var composite = screenCI
+        // Webcam-only: black base, never the screen (the screen frame is only the clock).
+        var composite = webcamOnly
+            ? CIImage(color: .black).cropped(to: CGRect(origin: .zero, size: outputSize))
+            : screenCI
 
         // Guard against a malformed camera buffer (a disconnecting external webcam can deliver
         // a zero-dimension frame, which would divide-by-zero in the PiP aspect-fill scaling).
@@ -57,10 +65,12 @@ final class FrameCompositor {
                         .translatedBy(x: -camCI.extent.width, y: 0)
                 )
             }
-            composite = overlayPiP(base: screenCI,
+            // Full-frame camera in webcam-only; normal corner PiP otherwise.
+            composite = overlayPiP(base: composite,
                                    camera: camCI,
-                                   pipRect: pipRect,
-                                   canvasSize: outputSize)
+                                   pipRect: webcamOnly ? CGRect(x: 0, y: 0, width: 1, height: 1) : pipRect,
+                                   canvasSize: outputSize,
+                                   roundedCorners: !webcamOnly)
         }
 
         // Coach's logo watermark, top-right (drawn over the PiP if they overlap).
@@ -106,7 +116,8 @@ final class FrameCompositor {
     private func overlayPiP(base: CIImage,
                              camera: CIImage,
                              pipRect: CGRect,
-                             canvasSize: CGSize) -> CIImage {
+                             canvasSize: CGSize,
+                             roundedCorners: Bool) -> CIImage {
         let pw = pipRect.width  * canvasSize.width
         let ph = pipRect.height * canvasSize.height
         let px = pipRect.origin.x * canvasSize.width
@@ -129,6 +140,11 @@ final class FrameCompositor {
         let positioned = scaled.transformed(
             by: .init(translationX: px - scaled.extent.minX,
                       y: ciY - scaled.extent.minY))
+
+        // The corner PiP gets rounded corners. A full-frame camera (webcam-only) does not: the
+        // radius scales with the width, so rounding it cut a black wedge out of every corner of
+        // the saved video, which the square preview never showed.
+        guard roundedCorners else { return positioned.composited(over: base) }
 
         // Round corners using traditional CIFilter API
         let pipCIRect = CGRect(x: px, y: ciY, width: pw, height: ph)

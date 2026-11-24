@@ -350,7 +350,9 @@ struct TrimEditorSheet: View {
     /// Land a beat BEFORE the phrase so the coach hears it in context.
     private func jumpToCurrentMatch() {
         guard matches.indices.contains(matchIndex) else { return }
-        seek(to: max(0, matches[matchIndex].time - 0.75))
+        // Land the playhead ON the word (not 0.75s before it) so "cut from here" starts at
+        // exactly what the coach searched for — field feedback 2026-11-14.
+        seek(to: max(0, matches[matchIndex].time))
     }
 
     // MARK: Logic

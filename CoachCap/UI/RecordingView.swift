@@ -128,6 +128,17 @@ struct RecordingView: View {
         // Keep the on-screen custom-area outline in sync with the selection.
         .onChange(of: appState.customArea) { _, _ in refreshAreaIndicator() }
         .onDisappear { areaIndicator?.orderOut(nil); areaIndicator = nil }
+        // Telemetry: the recorder's view went away while a recording was in flight (the window
+        // was closed, or the licence gate swapped the view out). Nothing finalises the file then.
+        .onDisappear {
+            if session.isRunning || appState.isRecording {
+                Telemetry.breadcrumb(.lifecycle, "recorder view disappeared while recording",
+                                     ["session_running": .bool(session.isRunning),
+                                      "ui_recording": .bool(appState.isRecording),
+                                      "saving": .bool(appState.isSaving)],
+                                     level: .warning)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notif in
             if notif.object as AnyObject === floatingPanel {
                 cancelCountdown()
@@ -647,6 +658,9 @@ struct RecordingView: View {
     private var availableDisplays: [DisplayOption] { DisplayList.available() }
 
     private func togglePause() {
+        // Telemetry: which way the button is about to act, and the UI's own paused flag.
+        Telemetry.breadcrumb(.recording, session.isPaused ? "resumed" : "paused",
+                             ["button": .token("main_window"), "ui_paused_flag": .bool(appState.isPaused)])
         if session.isPaused { session.resume(); appState.isPaused = false; appState.resumeTimer() }
         else               { session.pause();  appState.isPaused = true;  appState.pauseTimer()  }
     }
@@ -755,10 +769,36 @@ struct RecordingView: View {
             pipNormalizedRect: appState.pipRect,
             selectedMicID: appState.selectedMicID,
             recordSystemAudio: appState.recordComputerSound,
+            webcamOnly: appState.webcamOnlyMode,
             displayID: appState.webcamOnlyMode ? nil : (usingCustomArea ? appState.customAreaDisplayID : chosenDisplay?.id),
             sourceRect: usingCustomArea ? appState.customArea : nil,
             brandLogoCG: BrandingStore.shared.videoLogoCG()
         )
+        // Telemetry: what was asked for — numbers, booleans and constant tokens only. Never the
+        // output URL, the client name, or the name or id of a device or display.
+        Telemetry.noteRecordingSetup(.recording, "recording requested", [
+            "mode": .token(appState.webcamOnlyMode ? "webcam_only" : (usingCustomArea ? "custom_area" : "full_display")),
+            "countdown": .bool(appState.countdownEnabled),
+            "float_cam": .bool(floatingPanel != nil),
+            "computer_sound": .bool(appState.recordComputerSound),
+            "auto_hide_window": .bool(!appState.webcamOnlyMode
+                && (appState.activeTab == .photoTool ? appState.hideWindowWhileRecordingBeforeAfter
+                                                     : appState.hideWindowWhileRecording)),
+            "output_width": .int(Int(videoSize.width)),
+            "output_height": .int(Int(videoSize.height)),
+            "display_pixel_width": .int(Int(chosenDisplay?.pixelSize.width ?? 0)),
+            "display_pixel_height": .int(Int(chosenDisplay?.pixelSize.height ?? 0)),
+        ])
+        // Permissions as they stand right now, read with calls that never prompt. The closure is
+        // not run here: it runs on a background thread (so pressing Record waits on nothing
+        // new; and not at all when telemetry is off). Its result is slotted into the telemetry
+        // queue at this point, so these facts are in place before any event of this recording
+        // — including a start that fails straight away.
+        Telemetry.noteRecordingSetup(.permission, "permissions", evaluating: {
+            ["screen_permission": .token(CGPreflightScreenCaptureAccess() ? "granted" : "not_granted"),
+             "camera_permission": .token(Telemetry.authorizationToken(AVCaptureDevice.authorizationStatus(for: .video))),
+             "microphone_permission": .token(Telemetry.authorizationToken(AVCaptureDevice.authorizationStatus(for: .audio)))]
+        })
         Analytics.track("recording_started", [
             "mode": appState.webcamOnlyMode ? "webcam_only" : (usingCustomArea ? "custom_area" : "screen"),
             "computer_sound": appState.recordComputerSound,
@@ -773,6 +813,13 @@ struct RecordingView: View {
                 appState.startTimer()
                 hideMainWindowForRecording()
             } catch {
+                // Telemetry: a failed start is reported where it happened, inside
+                // RecordingSession.start(); this covers anything thrown that was not (domain
+                // and code only — never the description below). Then the recorder state goes
+                // back to idle, unless a recording is in fact running, so app-hang reporting
+                // is switched back on.
+                Telemetry.captureStartFailureIfUnreported("recording start failed", error: error)
+                if !session.isRunning { Telemetry.setRecordingState(.idle) }
                 appState.errorMessage = error.localizedDescription
             }
         }
@@ -853,6 +900,8 @@ struct RecordingView: View {
     ///   camera-stall  with -simulateCameraStallAfterSeconds N → same
     ///   mic-stall     with -simulateMicStallAfterSeconds N → same
     ///   pause-resume  4 s record, 3 s pause, 4 s record
+    ///   webcam-only        webcam-only mode, ~8 s — no frame of the recording may be black
+    ///   webcam-only-float  the same with the float cam open (it once recorded black video)
     /// Writes a JSON verdict to `-autotestOut <path>` and quits. The harness then verifies the
     /// produced file (ffprobe) and the finalize diagnostics in the error log.
     private func runAutotestIfRequested() {
@@ -866,13 +915,20 @@ struct RecordingView: View {
             appState.soundEffectsEnabled = false
             appState.hideWindowWhileRecording = false
             appState.clientName = "Autotest-\(scenario)"
+            // Webcam-only scenarios: choose the mode (and open the float cam) before the start,
+            // through the same calls the buttons make. `webcamOnlyMode` is not persisted.
+            if scenario == "webcam-only" || scenario == "webcam-only-float" {
+                appState.webcamOnlyMode = true
+                if scenario == "webcam-only-float", floatingPanel == nil { toggleFloatingCam() }
+                await wait(1.5)
+            }
             startWithCountdown()
             var waited = 0.0
             while !session.isRunning && waited < 15 { await wait(0.5); waited += 0.5 }
             let started = session.isRunning
 
             switch scenario {
-            case "baseline":
+            case "baseline", "webcam-only", "webcam-only-float":
                 await wait(8)
                 if session.isRunning { stopAndSave() }
             case "pause-resume":
@@ -1120,6 +1176,9 @@ struct RecordingView: View {
                 appState: appState,
                 onStart: { startWithCountdown() },
                 onPauseResume: {
+                    // Telemetry: as in togglePause(), for the float cam's own button.
+                    Telemetry.breadcrumb(.recording, session.isPaused ? "resumed" : "paused",
+                                         ["button": .token("float_cam"), "ui_paused_flag": .bool(appState.isPaused)])
                     if session.isPaused { session.resume(); appState.isPaused = false; appState.resumeTimer() }
                     else               { session.pause();  appState.isPaused = true;  appState.pauseTimer()  }
                 },
